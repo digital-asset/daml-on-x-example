@@ -17,6 +17,9 @@ steps:
     sudo apt-get install sbt
   displayName: 'Install SBT'
 
+- script: sbt scalafmtCheckAll
+  displayName: 'Check formatting'
+
 - script: sbt compile
   displayName: 'Compile'
 
