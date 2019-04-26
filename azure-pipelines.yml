@@ -24,4 +24,7 @@ steps:
   displayName: 'Compile'
 
 - script: sbt test
-  displayName: 'Test'
+  displayName: 'Unit tests'
+
+- script: sbt assembly
+  displayName: 'Package'

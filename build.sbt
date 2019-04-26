@@ -7,6 +7,17 @@ ThisBuild / organizationName := "Digital Asset, LLC"
 
 lazy val sdkVersion = "100.12.9"
 
+assemblyMergeStrategy in assembly := {
+  case "META-INF/io.netty.versions.properties" =>
+    // Looks like multiple versions patch versions of of io.netty are getting
+    // into dependency graph, choose one.
+    MergeStrategy.first
+  case x =>
+    val oldStrategy = (assemblyMergeStrategy in assembly).value
+    oldStrategy(x)
+}
+assemblyJarName in assembly := "damlonx-example.jar"
+
 lazy val root = (project in file("."))
   .settings(
     name := "DAML-on-X Example Ledger Implementation",
