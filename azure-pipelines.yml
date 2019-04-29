@@ -34,9 +34,11 @@ steps:
      # Use specific version until https://github.com/digital-asset/daml/pull/613 is merged
      curl -L 'https://bintray.com/api/v1/content/digitalassetsdk/DigitalAssetSDK/com/daml/ledger/testtool/ledger-api-test-tool_2.12/100.12.7/ledger-api-test-tool_2.12-100.12.7.jar?bt_package=sdk-components' -o ledger-api-test-tool.jar
      java -jar ledger-api-test-tool.jar --extract
-     java -jar target/scala-2.12/damlonx-example.jar --port=6865 SemanticTests.dar &
+     java -jar target/scala-2.12/damlonx-example.jar --port=6865 SemanticTests.dar & serverPid=$!
      while ! timeout 1 bash -c "echo > /dev/tcp/localhost/6865"; do
        sleep 1
      done
      java -jar ledger-api-test-tool.jar -h localhost -p 6865
+     kill $serverPid
+     wait $serverPid || true # mask SIGTERM error code we should get here.
   displayName: 'Integration test'
