@@ -17,26 +17,17 @@ steps:
     sudo apt-get install sbt
   displayName: 'Install SBT'
 
-- script: sbt scalafmtCheckAll
+- script: make format-check
   displayName: 'Check formatting'
 
-- script: sbt compile
+- script: make compile
   displayName: 'Compile'
 
-- script: sbt test
+- script: make test
   displayName: 'Unit tests'
 
-- script: sbt assembly
+- script: make package
   displayName: 'Package'
 
-- script: |
-     curl -L 'https://bintray.com/api/v1/content/digitalassetsdk/DigitalAssetSDK/com/daml/ledger/testtool/ledger-api-test-tool_2.12/$latest/ledger-api-test-tool_2.12-$latest.jar?bt_package=sdk-components' -o ledger-api-test-tool.jar
-     java -jar ledger-api-test-tool.jar --extract
-     java -jar target/scala-2.12/damlonx-example.jar --port=6865 SemanticTests.dar & serverPid=$!
-     while ! timeout 1 bash -c "echo > /dev/tcp/localhost/6865"; do
-       sleep 1
-     done
-     java -jar ledger-api-test-tool.jar -h localhost -p 6865
-     kill $serverPid
-     wait $serverPid || true # mask SIGTERM error code we should get here.
+- script: make it
   displayName: 'Integration test'
