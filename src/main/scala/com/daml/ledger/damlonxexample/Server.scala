@@ -12,7 +12,6 @@ import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import com.daml.ledger.api.server.damlonx.Server
 import com.daml.ledger.participant.state.index.v1.impl.reference.ReferenceIndexService
-import com.daml.ledger.participant.state.kvutils.InMemoryKVParticipantState
 import com.daml.ledger.participant.state.v1.{LedgerInitialConditions, Offset, ReadService, Update}
 import com.digitalasset.daml.lf.archive.DarReader
 import com.digitalasset.daml.lf.data.ImmArray
@@ -42,7 +41,7 @@ object ExampleServer extends App {
       }
   )
 
-  val ledger = new InMemoryKVParticipantState
+  val ledger = new ExampleInMemoryParticipantState
 
   def archivesFromDar(file: File): List[Archive] = {
     DarReader[Archive](x => Try(Archive.parseFrom(x)))

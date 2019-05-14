@@ -3,6 +3,10 @@
 compile:
 	sbt compile
 
+cleanCompile:
+	sbt clean cleanFiles
+	sbt compile
+
 format-check: compile
 	sbt scalafmtCheckAll
 
