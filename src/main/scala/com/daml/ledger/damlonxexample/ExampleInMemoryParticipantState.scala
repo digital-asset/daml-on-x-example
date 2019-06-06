@@ -83,7 +83,7 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
 
   private val logger = LoggerFactory.getLogger(this.getClass)
 
-  private implicit val ec: ExecutionContext = mat.executionContext
+  implicit private val ec: ExecutionContext = mat.executionContext
 
   val ledgerId = PackageId.assertFromString(UUID.randomUUID.toString)
 
@@ -152,7 +152,8 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
           logger.warn(s"CommitActor: duplicate entry identifier in commit message, ignoring.")
         } else {
           logger.trace(
-            s"CommitActor: processing submission ${KeyValueCommitting.prettyEntryId(entryId)}...")
+            s"CommitActor: processing submission ${KeyValueCommitting.prettyEntryId(entryId)}..."
+          )
           // Process the submission to produce the log entry and the state updates.
           val (logEntry, damlStateUpdates) = KeyValueCommitting.processSubmission(
             engine,
@@ -175,7 +176,8 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
             } + (entryId.getEntryId -> KeyValueCommitting.packDamlLogEntry(logEntry))
 
           logger.trace(
-            s"CommitActor: committing ${KeyValueCommitting.prettyEntryId(entryId)} and ${allUpdates.size} updates to store.")
+            s"CommitActor: committing ${KeyValueCommitting.prettyEntryId(entryId)} and ${allUpdates.size} updates to store."
+          )
 
           // Update the state.
           stateRef = state.copy(
@@ -243,11 +245,13 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
           .map { blob =>
             KeyValueConsumption.logEntryToUpdate(
               entryId,
-              KeyValueConsumption.unpackDamlLogEntry(blob))
+              KeyValueConsumption.unpackDamlLogEntry(blob)
+            )
           }
           .getOrElse(
             sys.error(
-              s"getUpdate: ${KeyValueCommitting.prettyEntryId(entryId)} not found from store!")
+              s"getUpdate: ${KeyValueCommitting.prettyEntryId(entryId)} not found from store!"
+            )
           )
 
       case CommitHeartbeat(recordTime) =>
@@ -281,11 +285,11 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
     *                        correlating this submission with its acceptance or rejection on the
     *                        associated [[ReadService]].
     * @param transactionMeta : the meta-data accessible to all consumers of the
-    *   transaction. See [[TransactionMeta]] for more information.
+    *                        transaction. See [[TransactionMeta]] for more information.
     * @param transaction     : the submitted transaction. This transaction can
     *                        contain contract-ids that are relative to this transaction itself.
     *                        These are used to refer to contracts created in the transaction
-    *   itself. The participant state implementation is expected to convert
+    *                        itself. The participant state implementation is expected to convert
     *                        these into absolute contract-ids that are guaranteed to be unique.
     *                        This typically happens after a transaction has been assigned a
     *                        globally unique id, as then the contract-ids can be derived from that
@@ -297,7 +301,8 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
   override def submitTransaction(
       submitterInfo: SubmitterInfo,
       transactionMeta: TransactionMeta,
-      transaction: SubmittedTransaction): CompletionStage[SubmissionResult] =
+      transaction: SubmittedTransaction
+  ): CompletionStage[SubmissionResult] =
     CompletableFuture.completedFuture({
       // Construct a [[DamlSubmission]] message using the key-value utilities.
       // [[DamlSubmission]] contains the serialized transaction and metadata such as
