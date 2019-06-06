@@ -5,30 +5,31 @@ package com.daml.ledger.damlonxexample
 
 import java.time.Clock
 import java.util.UUID
+import java.util.concurrent.{CompletableFuture, CompletionStage}
 
 import akka.NotUsed
 import akka.actor.{Actor, ActorSystem, Kill, Props}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
 import com.daml.ledger.participant.state.kvutils.DamlKvutils._
+import com.daml.ledger.participant.state.kvutils.KeyValueSubmission
+import com.daml.ledger.participant.state.kvutils.KeyValueCommitting
+import com.daml.ledger.participant.state.kvutils.KeyValueConsumption
 import com.daml.ledger.participant.state.v1._
 import com.digitalasset.daml.lf.data.Ref.PackageId
 import com.digitalasset.daml.lf.data.Time.Timestamp
 import com.digitalasset.daml.lf.engine.Engine
 import com.digitalasset.daml_lf.DamlLf.Archive
-import com.digitalasset.platform.services.time.TimeModel
 import com.digitalasset.platform.akkastreams.dispatcher.Dispatcher
-import com.digitalasset.platform.akkastreams.dispatcher.SubSource.{OneAfterAnother, RangeSource}
-import com.daml.ledger.participant.state.kvutils.KeyValueSubmission
-import com.daml.ledger.participant.state.kvutils.KeyValueCommitting
-import com.daml.ledger.participant.state.kvutils.KeyValueConsumption
+import com.digitalasset.platform.akkastreams.dispatcher.SubSource.OneAfterAnother
+import com.digitalasset.platform.services.time.TimeModel
 import com.google.protobuf.ByteString
 import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
 import scala.collection.breakOut
-import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 
 object ExampleInMemoryParticipantState {
 
@@ -63,6 +64,7 @@ object ExampleInMemoryParticipantState {
 
   /** A periodically emitted heartbeat that is committed to the ledger. */
   final case class CommitHeartbeat(recordTime: Timestamp) extends Commit
+
 }
 
 /** Implementation of the participant-state [[ReadService]] and [[WriteService]] using
@@ -76,8 +78,12 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
     extends ReadService
     with WriteService
     with AutoCloseable {
+
   import ExampleInMemoryParticipantState._
+
   private val logger = LoggerFactory.getLogger(this.getClass)
+
+  private implicit val ec: ExecutionContext = mat.executionContext
 
   val ledgerId = PackageId.assertFromString(UUID.randomUUID.toString)
 
@@ -146,8 +152,7 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
           logger.warn(s"CommitActor: duplicate entry identifier in commit message, ignoring.")
         } else {
           logger.trace(
-            s"CommitActor: processing submission ${KeyValueCommitting.prettyEntryId(entryId)}..."
-          )
+            s"CommitActor: processing submission ${KeyValueCommitting.prettyEntryId(entryId)}...")
           // Process the submission to produce the log entry and the state updates.
           val (logEntry, damlStateUpdates) = KeyValueCommitting.processSubmission(
             engine,
@@ -170,8 +175,7 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
             } + (entryId.getEntryId -> KeyValueCommitting.packDamlLogEntry(logEntry))
 
           logger.trace(
-            s"CommitActor: committing ${KeyValueCommitting.prettyEntryId(entryId)} and ${allUpdates.size} updates to store."
-          )
+            s"CommitActor: committing ${KeyValueCommitting.prettyEntryId(entryId)} and ${allUpdates.size} updates to store.")
 
           // Update the state.
           stateRef = state.copy(
@@ -209,7 +213,7 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
   /** Dispatcher to subscribe to 'Update' events derived from the state.
     * The index we use here is the "height" of the [[State.commitLog]].
     * This index is transformed into [[Offset]] in [[getUpdate]].
-    **
+    *
     * [[Dispatcher]] is an utility written by Digital Asset implementing a fanout
     * for a stream of events. It is initialized with an initial offset and a method for
     * retrieving an event given an offset. It provides the method
@@ -239,13 +243,11 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
           .map { blob =>
             KeyValueConsumption.logEntryToUpdate(
               entryId,
-              KeyValueConsumption.unpackDamlLogEntry(blob)
-            )
+              KeyValueConsumption.unpackDamlLogEntry(blob))
           }
           .getOrElse(
             sys.error(
-              s"getUpdate: ${KeyValueCommitting.prettyEntryId(entryId)} not found from store!"
-            )
+              s"getUpdate: ${KeyValueCommitting.prettyEntryId(entryId)} not found from store!")
           )
 
       case CommitHeartbeat(recordTime) =>
@@ -275,45 +277,43 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
 
   /** Submit a transaction to the ledger.
     *
-    * @param submitterInfo: the information provided by the submitter for
-    *   correlating this submission with its acceptance or rejection on the
-    *   associated [[ReadService]].
-    *
-    * @param transactionMeta: the meta-data accessible to all consumers of the
+    * @param submitterInfo   : the information provided by the submitter for
+    *                        correlating this submission with its acceptance or rejection on the
+    *                        associated [[ReadService]].
+    * @param transactionMeta : the meta-data accessible to all consumers of the
     *   transaction. See [[TransactionMeta]] for more information.
-    *
-    * @param transaction: the submitted transaction. This transaction can
-    *   contain contract-ids that are relative to this transaction itself.
-    *   These are used to refer to contracts created in the transaction
+    * @param transaction     : the submitted transaction. This transaction can
+    *                        contain contract-ids that are relative to this transaction itself.
+    *                        These are used to refer to contracts created in the transaction
     *   itself. The participant state implementation is expected to convert
-    *   these into absolute contract-ids that are guaranteed to be unique.
-    *   This typically happens after a transaction has been assigned a
-    *   globally unique id, as then the contract-ids can be derived from that
-    *   transaction id.
+    *                        these into absolute contract-ids that are guaranteed to be unique.
+    *                        This typically happens after a transaction has been assigned a
+    *                        globally unique id, as then the contract-ids can be derived from that
+    *                        transaction id.
     *
-    * See [[WriteService.submitTransaction]] for full documentation for the properties
-    * of this method.
+    *                        See [[WriteService.submitTransaction]] for full documentation for the properties
+    *                        of this method.
     */
   override def submitTransaction(
       submitterInfo: SubmitterInfo,
       transactionMeta: TransactionMeta,
-      transaction: SubmittedTransaction
-  ): Unit = {
+      transaction: SubmittedTransaction): CompletionStage[SubmissionResult] =
+    CompletableFuture.completedFuture({
+      // Construct a [[DamlSubmission]] message using the key-value utilities.
+      // [[DamlSubmission]] contains the serialized transaction and metadata such as
+      // the input contracts and other state required to validate the transaction.
+      val submission =
+        KeyValueSubmission.transactionToSubmission(submitterInfo, transactionMeta, transaction)
 
-    // Construct a [[DamlSubmission]] message using the key-value utilities.
-    // [[DamlSubmission]] contains the serialized transaction and metadata such as
-    // the input contracts and other state required to validate the transaction.
-    val submission =
-      KeyValueSubmission.transactionToSubmission(submitterInfo, transactionMeta, transaction)
-
-    // Send the [[DamlSubmission]] to the commit actor. The messages are
-    // queued and the actor's receive method is invoked sequentially with
-    // each message, hence this is safe under concurrency.
-    commitActorRef ! CommitSubmission(
-      allocateEntryId,
-      submission
-    )
-  }
+      // Send the [[DamlSubmission]] to the commit actor. The messages are
+      // queued and the actor's receive method is invoked sequentially with
+      // each message, hence this is safe under concurrency.
+      commitActorRef ! CommitSubmission(
+        allocateEntryId,
+        submission
+      )
+      SubmissionResult.Acknowledged
+    })
 
   /** Back-channel for uploading DAML-LF archives.
     * Currently participant-state interfaces do not specify an admin
