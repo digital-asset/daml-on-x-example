@@ -22,12 +22,10 @@ cd ../
 
 echo "Launching damlonx-example server..."
 java -jar target/scala-2.12/damlonx-example.jar --port=6865 target/SemanticTests.dar & serverPid=$!
-printf "Waiting for the server to start"
-while ! timeout 1 bash -c "echo > /dev/tcp/localhost/6865"; do
-    printf "."
-		sleep 1
-done
-echo
+echo "Waiting for the server to start"
+#crude sleep that will work cross platform
+sleep 20
+echo "damlonx-example server started"
 echo "Launching the test tool..."
 java -jar target/ledger-api-test-tool.jar -h localhost -p 6865
 echo "Test tool run is complete."
