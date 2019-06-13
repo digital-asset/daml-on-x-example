@@ -328,24 +328,24 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
   def uploadArchive(archive: Archive): Unit = {
     commitActorRef ! CommitSubmission(
       allocateEntryId,
-      KeyValueSubmission.archivesToSubmission(
-        List(archive),
-        "example source description",
-        "example participant id")
+      KeyValueSubmission
+        .archivesToSubmission(List(archive), "example source description", "example participant id")
     )
   }
 
   /** Allocate a party on the ledger */
   override def allocateParty(
       hint: Option[String],
-      displayName: Option[String]): CompletionStage[PartyAllocationResult] =
+      displayName: Option[String]
+  ): CompletionStage[PartyAllocationResult] =
     // TODO: Implement party management
     CompletableFuture.completedFuture(PartyAllocationResult.NotSupported)
 
   /** Upload a collection of DAML-LF packages to the ledger. */
   override def uploadPublicPackages(
       archives: List[Archive],
-      sourceDescription: String): CompletionStage[SubmissionResult] =
+      sourceDescription: String
+  ): CompletionStage[SubmissionResult] =
     // TODO: Implement this, and remove [[uploadArchive]].
     CompletableFuture.completedFuture(SubmissionResult.NotSupported)
 
