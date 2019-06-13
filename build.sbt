@@ -1,7 +1,7 @@
 import Dependencies._
 
 ThisBuild / scalaVersion     := "2.12.8"
-ThisBuild / version          := "0.1.1-SNAPSHOT"
+ThisBuild / version          := "0.1.2-SNAPSHOT"
 ThisBuild / organization     := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
