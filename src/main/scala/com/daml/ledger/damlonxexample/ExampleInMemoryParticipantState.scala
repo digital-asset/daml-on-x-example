@@ -22,7 +22,7 @@ import com.digitalasset.daml.lf.engine.Engine
 import com.digitalasset.daml_lf.DamlLf.Archive
 import com.digitalasset.platform.akkastreams.dispatcher.Dispatcher
 import com.digitalasset.platform.akkastreams.dispatcher.SubSource.OneAfterAnother
-import com.digitalasset.platform.services.time.TimeModel
+import com.daml.ledger.participant.state.backport.TimeModel
 import com.google.protobuf.ByteString
 import org.slf4j.LoggerFactory
 
@@ -328,9 +328,26 @@ class ExampleInMemoryParticipantState(implicit system: ActorSystem, mat: Materia
   def uploadArchive(archive: Archive): Unit = {
     commitActorRef ! CommitSubmission(
       allocateEntryId,
-      KeyValueSubmission.archiveToSubmission(archive)
+      KeyValueSubmission
+        .archivesToSubmission(List(archive), "example source description", "example participant id")
     )
   }
+
+  /** Allocate a party on the ledger */
+  override def allocateParty(
+      hint: Option[String],
+      displayName: Option[String]
+  ): CompletionStage[PartyAllocationResult] =
+    // TODO: Implement party management
+    CompletableFuture.completedFuture(PartyAllocationResult.NotSupported)
+
+  /** Upload a collection of DAML-LF packages to the ledger. */
+  override def uploadPublicPackages(
+      archives: List[Archive],
+      sourceDescription: String
+  ): CompletionStage[SubmissionResult] =
+    // TODO: Implement this, and remove [[uploadArchive]].
+    CompletableFuture.completedFuture(SubmissionResult.NotSupported)
 
   /** Retrieve the static initial conditions of the ledger, containing
     * the ledger identifier and the initial ledger record time.
