@@ -12,9 +12,9 @@ import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import com.daml.ledger.api.server.damlonx.Server
 import com.daml.ledger.participant.state.index.v1.impl.reference.ReferenceIndexService
-import com.daml.ledger.participant.state.v1.{LedgerInitialConditions, Offset, ReadService, Update}
+import com.daml.ledger.participant.state.v1._
 import com.digitalasset.daml.lf.archive.DarReader
-import com.digitalasset.daml.lf.data.ImmArray
+import com.digitalasset.daml.lf.data.{ImmArray, Ref}
 import com.digitalasset.daml_lf.DamlLf.Archive
 import com.digitalasset.platform.common.util.DirectExecutionContext
 import org.slf4j.LoggerFactory
@@ -41,21 +41,23 @@ object ExampleServer extends App {
       }
   )
 
-  val ledger = new ExampleInMemoryParticipantState
+  val participantId: ParticipantId = Ref.LedgerString.assertFromString("in-memory-participant")
+
+  val ledger = new ExampleInMemoryParticipantState(participantId)
 
   def archivesFromDar(file: File): List[Archive] = {
-    DarReader[Archive](x => Try(Archive.parseFrom(x)))
+    DarReader[Archive]((_, x) => Try(Archive.parseFrom(x)))
       .readArchive(new ZipFile(file))
       .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
   }
 
   // Parse DAR archives given as command-line arguments and upload them
   // to the ledger using a side-channel.
-  config.archiveFiles.foreach { f =>
-    archivesFromDar(f).foreach { archive =>
-      logger.info(s"Uploading archive ${archive.getHash}...")
-      ledger.uploadArchive(archive)
-    }
+  config.archiveFiles.foreach { darFile =>
+    logger.info(
+      s"""Uploading archives ${archivesFromDar(darFile).map { _.getHash }.mkString(",")}..."""
+    )
+    ledger.uploadPackages(archivesFromDar(darFile), Some("uploaded by server"))
   }
 
   ledger.getLedgerInitialConditions
@@ -63,7 +65,8 @@ object ExampleServer extends App {
     .foreach { initialConditions =>
       val indexService = ReferenceIndexService(
         participantReadService = ledger,
-        initialConditions = initialConditions
+        initialConditions = initialConditions,
+        participantId = participantId
       )
 
       val server = Server(
