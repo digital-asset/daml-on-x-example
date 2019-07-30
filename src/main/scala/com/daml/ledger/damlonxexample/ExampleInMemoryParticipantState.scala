@@ -4,7 +4,7 @@
 package com.daml.ledger.damlonxexample
 
 import java.io._
-import java.time.Clock
+import java.time.{Clock,ZoneId}
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{CompletableFuture, CompletionStage}
@@ -48,22 +48,24 @@ object ExampleInMemoryParticipantState {
       commitLog: Vector[Commit],
       // Current record time of the ledger.
       recordTime: Timestamp,
+      initRecordTime: Timestamp,
       // Store containing both the [[DamlLogEntry]] and [[DamlStateValue]]s.
       // The store is mutated by applying [[DamlSubmission]]s. The store can
       // be reconstructed from scratch by replaying [[State.commits]].
       store: Map[ByteString, ByteString],
       // Current ledger configuration.
-      config: Configuration
+      //config: Configuration
   )
 
   object State {
     def empty = State(
       commitLog = Vector.empty[Commit],
       recordTime = Timestamp.Epoch,
+      initRecordTime = Timestamp.assertFromInstant(Clock.system(ZoneId.systemDefault()).instant()),
       store = Map.empty[ByteString, ByteString],
-      config = Configuration(
-        timeModel = TimeModel.reasonableDefault
-      )
+      //config = Configuration(
+        //timeModel = TimeModel.reasonableDefault
+      //)
     )
 
   }
@@ -104,8 +106,8 @@ object ExampleInMemoryParticipantState {
   */
 class ExampleInMemoryParticipantState(
     val participantId: ParticipantId,
-    val ledgerId: LedgerString.T = Ref.LedgerString.assertFromString(UUID.randomUUID.toString),
-    file: Option[File] = None
+    val ledgerId: LedgerString.T = Ref.LedgerString.assertFromString("damlonexample"),
+    //file: Option[File] = new File("./state")
 )(implicit system: ActorSystem, mat: Materializer)
     extends ReadService
     with WriteService
@@ -116,6 +118,11 @@ class ExampleInMemoryParticipantState(
   private val logger = LoggerFactory.getLogger(this.getClass)
 
   implicit private val ec: ExecutionContext = mat.executionContext
+
+  val file: Option[File] = Some(new File("./state"))
+  val config: Configuration = Configuration(
+    timeModel = TimeModel.reasonableDefault
+  )
 
   // The ledger configuration
   private val ledgerConfig = Configuration(timeModel = TimeModel.reasonableDefault)
@@ -133,7 +140,7 @@ class ExampleInMemoryParticipantState(
   private val NS_DAML_STATE = ByteString.copyFromUtf8("DS")
 
   // For an in-memory ledger, an atomic integer is enough to guarantee uniqueness
-  private val submissionId = new AtomicInteger()
+  private var submissionId = new AtomicInteger()
 
   /** Interval for heartbeats. Heartbeats are committed to [[State.commitLog]]
     * and sent as [[Update.Heartbeat]] to [[stateUpdates]] consumers.
@@ -150,17 +157,31 @@ class ExampleInMemoryParticipantState(
   @volatile private var stateRef: State = {
     val initState = Try(file.map { f =>
       val is = new ObjectInputStream(new FileInputStream(f))
-      val state = is.readObject().asInstanceOf[State]
-      is.close()
-      state
+      val tag = is.readInt()
+      if(tag == 111){
+        submissionId = is.readObject().asInstanceOf[AtomicInteger]        
+        val state = is.readObject().asInstanceOf[State]
+        initialConditions = LedgerInitialConditions(ledgerId, ledgerConfig, state.initRecordTime)
+        logger.info(s"initialConditions: ${state.initRecordTime}")
+        is.close()
+        state
+      }else{
+        logger.info(s"Scan not get init state")
+        is.close()
+        State.empty
+      }
+
     }).toOption.flatten.getOrElse(State.empty)
     logger.info(s"Starting ledger backend at offset ${initState.commitLog.size}")
+    logger.info(s"submissionId :${submissionId.toString()}")
     initState
   }
 
   private def updateState(newState: State) = {
     file.foreach { f =>
       val os = new ObjectOutputStream(new FileOutputStream(f))
+      os.writeInt(111)
+      os.writeObject(submissionId)
       os.writeObject(newState)
       os.flush()
       os.close()
@@ -238,8 +259,9 @@ class ExampleInMemoryParticipantState(
 
     override def receive: Receive = {
       case commit @ CommitHeartbeat(newRecordTime) =>
-        logger.trace(s"CommitActor: committing heartbeat, recordTime=$newRecordTime")
+        logger.info(s"CommitActor: committing heartbeat, recordTime=$newRecordTime")
         // Update the state.
+        logger.info(s"CommitActor: committing heartbeat, ${commit.recordTime}")
         updateState(
           stateRef.copy(
             commitLog = stateRef.commitLog :+ commit,
@@ -264,7 +286,8 @@ class ExampleInMemoryParticipantState(
           // Process the submission to produce the log entry and the state updates.
           val (logEntry, damlStateUpdates) = KeyValueCommitting.processSubmission(
             engine,
-            state.config,
+            //state.config,
+            config,
             entryId,
             newRecordTime,
             submission,
@@ -529,9 +552,9 @@ class ExampleInMemoryParticipantState(
   }
 
   /** The initial conditions of the ledger. The initial record time is the instant
-    * at which this class has been instantiated.
-    */
-  private val initialConditions = LedgerInitialConditions(ledgerId, ledgerConfig, getNewRecordTime)
+  * at which this class has been instantiated.
+  */
+  private var initialConditions = LedgerInitialConditions(ledgerId, ledgerConfig, stateRef.initRecordTime)
 
   /** Get a new record time for the ledger from the system clock.
     * Public for use from integration tests.

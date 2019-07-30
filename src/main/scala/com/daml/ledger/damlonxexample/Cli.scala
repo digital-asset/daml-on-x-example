@@ -60,7 +60,8 @@ object Cli {
       .text("TLS: The crt file to be used as the the trusted root CA.")
       .action(cacrtConfig)
     arg[File]("<archive>...")
-      .unbounded()
+      //.unbounded()
+      .optional()
       .action((f, c) => c.copy(archiveFiles = f :: c.archiveFiles))
       .text(
         "DAR files to load. Scenarios are ignored. The servers starts with an empty ledger by default."

@@ -3,8 +3,8 @@
 
 package com.daml.ledger.damlonxexample
 
-import java.io.{File, FileWriter}
-import java.util.zip.ZipFile
+import java.io.{File, FileWriter,FileInputStream}
+import java.util.zip.ZipInputStream
 
 import akka.NotUsed
 import akka.actor.ActorSystem
@@ -47,7 +47,7 @@ object ExampleServer extends App {
 
   def archivesFromDar(file: File): List[Archive] = {
     DarReader[Archive]((_, x) => Try(Archive.parseFrom(x)))
-      .readArchive(new ZipFile(file))
+      .readArchive("iou",new ZipInputStream(new FileInputStream(file)))
       .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
   }
 
