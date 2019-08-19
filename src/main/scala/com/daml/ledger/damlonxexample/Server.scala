@@ -45,19 +45,21 @@ object ExampleServer extends App {
 
   val ledger = new ExampleInMemoryParticipantState(participantId)
 
+  //val ledger = new Ledger(timeModel, tsb)
   def archivesFromDar(file: File): List[Archive] = {
-    DarReader[Archive]((_, x) => Try(Archive.parseFrom(x)))
-      .readArchive(new ZipFile(file))
+    DarReader[Archive] { case (_, x) => Try(Archive.parseFrom(x)) }
+      .readArchiveFromFile(file)
       .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
   }
 
   // Parse DAR archives given as command-line arguments and upload them
   // to the ledger using a side-channel.
-  config.archiveFiles.foreach { darFile =>
-    logger.info(
-      s"""Uploading archives ${archivesFromDar(darFile).map { _.getHash }.mkString(",")}..."""
-    )
-    ledger.uploadPackages(archivesFromDar(darFile), Some("uploaded by server"))
+  config.archiveFiles.foreach { f =>
+    val archives = archivesFromDar(f)
+    archives.foreach { archive =>
+      logger.info(s"Uploading package ${archive.getHash}...")
+    }
+    ledger.uploadPackages(archives, Some("uploaded on startup by participant"))
   }
 
   ledger.getLedgerInitialConditions

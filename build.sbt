@@ -1,11 +1,11 @@
 import Dependencies._
 
 ThisBuild / scalaVersion     := "2.12.8"
-ThisBuild / version          := "0.1.2-SNAPSHOT"
+ThisBuild / version          := "0.1.3-SNAPSHOT"
 ThisBuild / organization     := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
-lazy val sdkVersion = "100.13.12"
+lazy val sdkVersion = "100.13.19"
 
 // This task is used by the integration test to detect which version of Ledger API Test Tool to use.
 val printSdkVersion= taskKey[Unit]("printSdkVersion")
@@ -39,7 +39,7 @@ lazy val root = (project in file("."))
       "com.daml.ledger" %% "api-server-damlonx" % sdkVersion,
       "com.daml.ledger" %% "participant-state-index-v1" % sdkVersion,
       "com.daml.ledger" %% "reference-participant-state-index" % sdkVersion,
-      "com.daml.ledger" %% "participant-state-v1" % sdkVersion,
+      "com.daml.ledger" %% "participant-state" % sdkVersion,
       "com.daml.ledger" %% "participant-state-kvutils" % sdkVersion,
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
     ),
