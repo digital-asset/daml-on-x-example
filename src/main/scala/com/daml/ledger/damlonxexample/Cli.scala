@@ -31,7 +31,7 @@ object Cli {
       )(c => Some(c.copy(trustCertCollectionFile = Some(new File(path)))))
     )
 
-  private val cmdArgParser = new scopt.OptionParser[Config]("reference-server") {
+  private val cmdArgParser = new scopt.OptionParser[Config]("damlonx-example") {
     head(
       "A fully compliant DAML Ledger API server backed by an in-memory store.\n" +
         "Due to its lack of persistence it is not meant for production, but to serve as a blueprint for other DAML Ledger API server implementations."
