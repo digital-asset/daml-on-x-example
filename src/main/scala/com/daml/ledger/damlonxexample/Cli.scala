@@ -6,6 +6,7 @@ package com.daml.ledger.damlonxexample
 import java.io.File
 
 import com.digitalasset.ledger.api.tls.TlsConfiguration
+import com.digitalasset.platform.index.config.Config
 
 object Cli {
 
@@ -30,7 +31,7 @@ object Cli {
       )(c => Some(c.copy(trustCertCollectionFile = Some(new File(path)))))
     )
 
-  private val cmdArgParser = new scopt.OptionParser[Config]("damlonxexample-server") {
+  private val cmdArgParser = new scopt.OptionParser[Config]("reference-server") {
     head(
       "A fully compliant DAML Ledger API server backed by an in-memory store.\n" +
         "Due to its lack of persistence it is not meant for production, but to serve as a blueprint for other DAML Ledger API server implementations."
@@ -59,6 +60,14 @@ object Cli {
       .optional()
       .text("TLS: The crt file to be used as the the trusted root CA.")
       .action(cacrtConfig)
+    opt[Int]("maxInboundMessageSize")
+      .action((x, c) => c.copy(maxInboundMessageSize = x))
+      .text(
+        s"Max inbound message size in bytes. Defaults to ${Config.DefaultMaxInboundMessageSize}."
+      )
+//    opt[String]("jdbc-url")
+//      .text("The JDBC URL to the postgres database used for the indexer and the index")
+//      .action((u, c) => c.copy(jdbcUrl = u))
     arg[File]("<archive>...")
       .unbounded()
       .action((f, c) => c.copy(archiveFiles = f :: c.archiveFiles))

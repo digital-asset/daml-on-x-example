@@ -4,6 +4,7 @@
 package com.daml.ledger.damlonxexample
 
 import java.io.{File, FileWriter}
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipFile
 
 import akka.NotUsed
@@ -17,19 +18,25 @@ import com.digitalasset.daml.lf.archive.DarReader
 import com.digitalasset.daml.lf.data.{ImmArray, Ref}
 import com.digitalasset.daml_lf.DamlLf.Archive
 import com.digitalasset.platform.common.util.DirectExecutionContext
+import com.digitalasset.platform.index.{StandaloneIndexServer, StandaloneIndexerServer}
 import org.slf4j.LoggerFactory
 
 import scala.util.Try
+import scala.util.control.NonFatal
 
 /** The example server is a fully compliant DAML Ledger API server
   * backed by the in-memory reference index and participant state implementations.
   * Not meant for production, or even development use cases, but for serving as a blueprint
   * for other implementations.
   */
-object ExampleServer extends App {
+object ExampleServer extends App with EphemeralPostgres {
   val logger = LoggerFactory.getLogger(this.getClass)
 
-  val config = Cli.parse(args).getOrElse(sys.exit(1))
+  val ephemeralPg = startEphemeralPg()
+
+  val config = Cli.parse(args).getOrElse(sys.exit(1)).copy(jdbcUrl=ephemeralPg.jdbcUrl)
+
+  val participantId: ParticipantId = Ref.LedgerString.assertFromString("in-memory-participant")
 
   // Initialize Akka and log exceptions in flows.
   implicit val system: ActorSystem = ActorSystem("DamlonxExampleServer")
@@ -41,9 +48,12 @@ object ExampleServer extends App {
       }
   )
 
-  val participantId: ParticipantId = Ref.LedgerString.assertFromString("in-memory-participant")
-
   val ledger = new ExampleInMemoryParticipantState(participantId)
+  val readService = ledger
+  val writeService = ledger
+
+  val indexerServer = StandaloneIndexerServer(readService, config.jdbcUrl)
+  val indexServer = StandaloneIndexServer(config, readService, writeService).start()
 
   //val ledger = new Ledger(timeModel, tsb)
   def archivesFromDar(file: File): List[Archive] = {
@@ -62,30 +72,27 @@ object ExampleServer extends App {
     ledger.uploadPackages(archives, Some("uploaded on startup by participant"))
   }
 
-  ledger.getLedgerInitialConditions
-    .runWith(Sink.head)
-    .foreach { initialConditions =>
-      val indexService = ReferenceIndexService(
-        participantReadService = ledger,
-        initialConditions = initialConditions,
-        participantId = participantId
-      )
+  val closed = new AtomicBoolean(false)
 
-      val server = Server(
-        serverPort = config.port,
-        sslContext = config.tlsConfig.flatMap(_.server),
-        indexService = indexService,
-        writeService = ledger
-      )
+  def closeServer(): Unit = {
+    if (closed.compareAndSet(false, true)) {
+      indexServer.close()
+      indexerServer.close()
+      ledger.close()
+      materializer.shutdown()
+      val _ = system.terminate()
+    }
+  }
 
-      // If port file was provided, write out the allocated server port to it.
-      config.portFile.foreach { f =>
-        val w = new FileWriter(f)
-        w.write(s"${server.port}\n")
-        w.close
-      }
-
-      // Add a hook to close the server. Invoked when Ctrl-C is pressed.
-      Runtime.getRuntime.addShutdownHook(new Thread(() => server.close()))
-    }(DirectExecutionContext)
+  try {
+    Runtime.getRuntime.addShutdownHook(new Thread(() => {
+      closeServer()
+      stopAndCleanUp(ephemeralPg.tempDir, ephemeralPg.dataDir, ephemeralPg.logFile)
+    }))
+  } catch {
+    case NonFatal(t) => {
+      logger.error("Shutting down Sandbox application because of initialization error", t)
+      closeServer()
+    }
+  }
 }
