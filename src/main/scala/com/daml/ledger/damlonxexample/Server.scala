@@ -34,7 +34,7 @@ object ExampleServer extends App with EphemeralPostgres {
 
   val ephemeralPg = startEphemeralPg()
 
-  val config = Cli.parse(args).getOrElse(sys.exit(1)).copy(jdbcUrl=ephemeralPg.jdbcUrl)
+  val config = Cli.parse(args).getOrElse(sys.exit(1)).copy(jdbcUrl = ephemeralPg.jdbcUrl)
 
   val participantId: ParticipantId = Ref.LedgerString.assertFromString("in-memory-participant")
 
