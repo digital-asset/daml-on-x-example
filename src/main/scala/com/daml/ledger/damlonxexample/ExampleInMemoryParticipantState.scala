@@ -10,7 +10,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{CompletableFuture, CompletionStage}
 
 import akka.NotUsed
-import akka.actor.{Actor, ActorSystem, Kill, Props}
+import akka.actor.{Actor, ActorSystem, PoisonPill, Props}
+import akka.pattern.gracefulStop
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
 import com.daml.ledger.participant.state.backport.TimeModel
@@ -18,6 +19,7 @@ import com.daml.ledger.participant.state.kvutils.DamlKvutils._
 import com.daml.ledger.participant.state.kvutils.KeyValueSubmission
 import com.daml.ledger.participant.state.kvutils.KeyValueCommitting
 import com.daml.ledger.participant.state.kvutils.KeyValueConsumption
+import com.daml.ledger.participant.state.kvutils.Pretty
 import com.daml.ledger.participant.state.v1.{UploadPackagesResult, _}
 import com.digitalasset.daml.lf.data.Ref
 import com.digitalasset.daml.lf.data.Ref.{LedgerString, Party}
@@ -32,7 +34,7 @@ import org.slf4j.LoggerFactory
 import scala.collection.JavaConverters._
 import scala.collection.breakOut
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.Try
 
 object ExampleInMemoryParticipantState {
@@ -51,19 +53,14 @@ object ExampleInMemoryParticipantState {
       // Store containing both the [[DamlLogEntry]] and [[DamlStateValue]]s.
       // The store is mutated by applying [[DamlSubmission]]s. The store can
       // be reconstructed from scratch by replaying [[State.commits]].
-      store: Map[ByteString, ByteString],
-      // Current ledger configuration.
-      config: Configuration
+      store: Map[ByteString, ByteString]
   )
 
   object State {
     def empty = State(
       commitLog = Vector.empty[Commit],
       recordTime = Timestamp.Epoch,
-      store = Map.empty[ByteString, ByteString],
-      config = Configuration(
-        timeModel = TimeModel.reasonableDefault
-      )
+      store = Map.empty[ByteString, ByteString]
     )
 
   }
@@ -105,7 +102,8 @@ object ExampleInMemoryParticipantState {
 class ExampleInMemoryParticipantState(
     val participantId: ParticipantId,
     val ledgerId: LedgerString.T = Ref.LedgerString.assertFromString(UUID.randomUUID.toString),
-    file: Option[File] = None
+    file: Option[File] = None,
+    openWorld: Boolean = true
 )(implicit system: ActorSystem, mat: Materializer)
     extends ReadService
     with WriteService
@@ -117,8 +115,13 @@ class ExampleInMemoryParticipantState(
 
   implicit private val ec: ExecutionContext = mat.executionContext
 
-  // The ledger configuration
-  private val ledgerConfig = Configuration(timeModel = TimeModel.reasonableDefault)
+  // The initial ledger configuration
+  private val initialLedgerConfig = Configuration(
+    generation = 0,
+    timeModel = TimeModel.reasonableDefault,
+    authorizedParticipantId = Some(participantId),
+    openWorld = openWorld
+  )
 
   // DAML Engine for transaction validation.
   private val engine = Engine()
@@ -133,7 +136,7 @@ class ExampleInMemoryParticipantState(
   private val NS_DAML_STATE = ByteString.copyFromUtf8("DS")
 
   // For an in-memory ledger, an atomic integer is enough to guarantee uniqueness
-  private val submissionId = new AtomicInteger()
+  private val submissionIdSource = new AtomicInteger()
 
   /** Interval for heartbeats. Heartbeats are committed to [[State.commitLog]]
     * and sent as [[Update.Heartbeat]] to [[stateUpdates]] consumers.
@@ -258,19 +261,23 @@ class ExampleInMemoryParticipantState(
           // client retry submission.
           logger.warn(s"CommitActor: duplicate entry identifier in commit message, ignoring.")
         } else {
-          logger.trace(
-            s"CommitActor: processing submission ${KeyValueCommitting.prettyEntryId(entryId)}..."
-          )
+          logger.trace(s"CommitActor: processing submission ${Pretty.prettyEntryId(entryId)}...")
           // Process the submission to produce the log entry and the state updates.
-          val (logEntry, damlStateUpdates) = KeyValueCommitting.processSubmission(
-            engine,
-            state.config,
-            entryId,
-            newRecordTime,
-            submission,
+
+          val stateInputs: Map[DamlStateKey, Option[DamlStateValue]] =
             submission.getInputDamlStateList.asScala
               .map(key => key -> getDamlState(state, key))(breakOut)
-          )
+
+          val (logEntry, damlStateUpdates) =
+            KeyValueCommitting.processSubmission(
+              engine,
+              entryId,
+              newRecordTime,
+              initialLedgerConfig,
+              submission,
+              participantId,
+              stateInputs
+            )
 
           // Verify that the state updates match the pre-declared outputs.
           val expectedStateUpdates = KeyValueCommitting.submissionOutputs(entryId, submission)
@@ -290,7 +297,7 @@ class ExampleInMemoryParticipantState(
             } + (entryId.getEntryId -> KeyValueCommitting.packDamlLogEntry(logEntry))
 
           logger.trace(
-            s"CommitActor: committing ${KeyValueCommitting.prettyEntryId(entryId)} and ${allUpdates.size} updates to store."
+            s"CommitActor: committing ${Pretty.prettyEntryId(entryId)} and ${allUpdates.size} updates to store."
           )
 
           // Update the state.
@@ -366,9 +373,7 @@ class ExampleInMemoryParticipantState(
             )
           }
           .getOrElse(
-            sys.error(
-              s"getUpdate: ${KeyValueCommitting.prettyEntryId(entryId)} not found from store!"
-            )
+            sys.error(s"getUpdate: ${Pretty.prettyEntryId(entryId)} not found from store!")
           )
 
       case CommitHeartbeat(recordTime) =>
@@ -465,7 +470,7 @@ class ExampleInMemoryParticipantState(
       party: String,
       displayName: Option[String]
   ): CompletionStage[PartyAllocationResult] = {
-    val sId = submissionId.getAndIncrement().toString
+    val sId = submissionIdSource.getAndIncrement().toString
     val cf = new CompletableFuture[PartyAllocationResult]
     matcherActorRef ! AddPartyAllocationRequest(sId, cf)
     commitActorRef ! CommitSubmission(
@@ -483,7 +488,7 @@ class ExampleInMemoryParticipantState(
       archives: List[Archive],
       sourceDescription: Option[String]
   ): CompletionStage[UploadPackagesResult] = {
-    val sId = submissionId.getAndIncrement().toString
+    val sId = submissionIdSource.getAndIncrement().toString
     val cf = new CompletableFuture[UploadPackagesResult]
     matcherActorRef ! AddPackageUploadRequest(sId, cf)
     commitActorRef ! CommitSubmission(
@@ -501,13 +506,12 @@ class ExampleInMemoryParticipantState(
     * connectivity to the underlying ledger. The implementer may assume that
     * this method is called only once, or very rarely.
     */
-  // FIXME(JM): Add configuration to initial conditions!
   override def getLedgerInitialConditions(): Source[LedgerInitialConditions, NotUsed] =
     Source.single(initialConditions)
 
-  /** Shutdown by killing the [[CommitActor]]. */
+  /** Shutdown the in-memory participant state. */
   override def close(): Unit = {
-    commitActorRef ! Kill
+    val _ = Await.ready(gracefulStop(commitActorRef, 5.seconds, PoisonPill), 6.seconds)
   }
 
   private def getLogEntry(state: State, entryId: DamlLogEntryId): DamlLogEntry = {
@@ -516,7 +520,7 @@ class ExampleInMemoryParticipantState(
         state.store
           .getOrElse(
             entryId.getEntryId,
-            sys.error(s"getLogEntry: Cannot find ${KeyValueCommitting.prettyEntryId(entryId)}!")
+            sys.error(s"getLogEntry: Cannot find ${Pretty.prettyEntryId(entryId)}!")
           )
       )
   }
@@ -537,12 +541,29 @@ class ExampleInMemoryParticipantState(
   /** The initial conditions of the ledger. The initial record time is the instant
     * at which this class has been instantiated.
     */
-  private val initialConditions = LedgerInitialConditions(ledgerId, ledgerConfig, getNewRecordTime)
+  private val initialConditions =
+    LedgerInitialConditions(ledgerId, initialLedgerConfig, getNewRecordTime)
 
   /** Get a new record time for the ledger from the system clock.
     * Public for use from integration tests.
     */
   def getNewRecordTime(): Timestamp =
     Timestamp.assertFromInstant(Clock.systemUTC().instant())
+
+  /** Submit a new configuration to the ledger. */
+  override def submitConfiguration(
+      maxRecordTime: Timestamp,
+      submissionId: String,
+      config: Configuration
+  ): CompletionStage[SubmissionResult] =
+    CompletableFuture.completedFuture({
+      val submission =
+        KeyValueSubmission.configurationToSubmission(maxRecordTime, submissionId, config)
+      commitActorRef ! CommitSubmission(
+        allocateEntryId,
+        submission
+      )
+      SubmissionResult.Acknowledged
+    })
 
 }

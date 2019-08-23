@@ -5,7 +5,7 @@ ThisBuild / version := "0.1.3-SNAPSHOT"
 ThisBuild / organization := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
-lazy val sdkVersion = "100.13.19"
+lazy val sdkVersion = "100.13.20"
 
 // This task is used by the integration test to detect which version of Ledger API Test Tool to use.
 val printSdkVersion = taskKey[Unit]("printSdkVersion")
