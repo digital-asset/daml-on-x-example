@@ -14,6 +14,10 @@ echo "Downloading DAML Integration kit Ledger API Test Tool version ${sdkVersion
 curl -L "https://bintray.com/api/v1/content/digitalassetsdk/DigitalAssetSDK/com/daml/ledger/testtool/ledger-api-test-tool_2.12/${sdkVersion}/ledger-api-test-tool_2.12-${sdkVersion}.jar?bt_package=sdk-components" \
      -o target/ledger-api-test-tool.jar
 
+readonly OSNAME="$(uname -s)"
+if [ "$OSNAME" = "Linux" ] ; then
+  export PATH=$PATH:`echo /usr/lib/postgresql/*/bin`
+fi
 
 echo "Extracting the .dar file to load in example server..."
 cd target && java -jar ledger-api-test-tool.jar --extract || true # mask incorrect error code of the tool: https://github.com/digital-asset/daml/pull/889

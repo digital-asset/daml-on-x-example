@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.1.3]
 ### Changed
 - Use postgres as ledger index database [#23](https://github.com/digital-asset/daml-on-x-example/issues/23)
-Ephemeral postgres database is used as ledger index. 
+An ephemeral database is created with every start of the server process and is deleted at exit. 
 - Upgrade to 100.13.20 version of the DAML SDK
 
 
