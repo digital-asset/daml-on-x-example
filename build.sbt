@@ -1,16 +1,15 @@
 import Dependencies._
 
-ThisBuild / scalaVersion     := "2.12.8"
-ThisBuild / version          := "0.1.2-SNAPSHOT"
-ThisBuild / organization     := "com.daml"
+ThisBuild / scalaVersion := "2.12.8"
+ThisBuild / version := "0.1.3-SNAPSHOT"
+ThisBuild / organization := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
-lazy val sdkVersion = "100.13.12"
+lazy val sdkVersion = "100.13.20"
 
 // This task is used by the integration test to detect which version of Ledger API Test Tool to use.
-val printSdkVersion= taskKey[Unit]("printSdkVersion")
+val printSdkVersion = taskKey[Unit]("printSdkVersion")
 printSdkVersion := println(sdkVersion)
-
 
 assemblyMergeStrategy in assembly := {
   case "META-INF/io.netty.versions.properties" =>
@@ -34,15 +33,17 @@ lazy val root = (project in file("."))
       "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.22" % Test,
       "com.typesafe.akka" %% "akka-slf4j" % "2.5.22",
       "org.slf4j" % "slf4j-api" % "1.7.26",
+      "ch.qos.logback" % "logback-core" % "1.2.3",
+      "ch.qos.logback" % "logback-classic" % "1.2.3",
+      "commons-io" % "commons-io" % "2.6",
       "com.digitalasset" % "daml-lf-archive" % sdkVersion,
       "com.digitalasset.ledger" %% "ledger-api-common" % sdkVersion,
       "com.daml.ledger" %% "api-server-damlonx" % sdkVersion,
       "com.daml.ledger" %% "participant-state-index-v1" % sdkVersion,
       "com.daml.ledger" %% "reference-participant-state-index" % sdkVersion,
-      "com.daml.ledger" %% "participant-state-v1" % sdkVersion,
+      "com.daml.ledger" %% "participant-state" % sdkVersion,
       "com.daml.ledger" %% "participant-state-kvutils" % sdkVersion,
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
     ),
-    resolvers += "Digital Asset SDK" at "https://digitalassetsdk.bintray.com/DigitalAssetSDK"
+    resolvers += "Digital Asset SDK".at("https://digitalassetsdk.bintray.com/DigitalAssetSDK")
   )
-

@@ -5,6 +5,13 @@ ledger](https://docs.daml.com/concepts/ledger-model/index.html) implementation
 using [DAML Integration
 Kit](https://docs.daml.com/daml-integration-kit/index.html).
 
+## Prerequisites
+
+This application assumes that postgres is installed on the machine and the
+paths to corresponding utilities such as initdb and pd_ctl have been defined in the
+environment.
+
+
 ## Usage
 
 To run it execute:
@@ -45,3 +52,20 @@ server
 You can test the server in this example as per that approach by running
 
     make it
+
+## Replicating in your project
+
+This application is meant as an example that drives integrations of DAML to 
+different ledger platforms. An integration will typically replace the
+ExampleInMemoryParticipantState with a dedicated implementations of ReadService 
+and WriteService. These services can be implemented together or separately,
+depending on the preference. It is also possible to implement the server as two
+processes, one containing the ReadService + IndexerService and the other 
+containing the WriteService and the IndexService.
+
+In order to simplify deployment in a demo environment
+an epheperal database is spun off at the execution time. The complexities of setting
+up and cleaning up such a database are contained in a class called EphemeralPostgres.
+In a proper implementation, this should be vastly simplified by simply starting a 
+Postgres database outside of the ledger api server process and passing a jdbc
+connection URL as a command line argument.  
