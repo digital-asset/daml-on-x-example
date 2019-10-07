@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{CompletableFuture, CompletionStage}
 
 import akka.NotUsed
-import akka.actor.{Actor, ActorSystem, PoisonPill, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, PoisonPill, Props}
 import akka.pattern.gracefulStop
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
@@ -161,7 +161,7 @@ class ExampleInMemoryParticipantState(
     initState
   }
 
-  private def updateState(newState: State) = {
+  private def updateState(newState: State): Unit = {
     file.foreach { f =>
       val os = new ObjectOutputStream(new FileOutputStream(f))
       os.writeObject(newState)
@@ -319,7 +319,7 @@ class ExampleInMemoryParticipantState(
   /** Instance of the [[CommitActor]] to which we send messages. */
   private val commitActorRef = {
     // Start the commit actor.
-    val actorRef =
+    val actorRef: ActorRef =
       system.actorOf(Props(new CommitActor), s"commit-actor-$ledgerId")
 
     // Schedule heartbeat messages to be delivered to the commit actor.
@@ -444,7 +444,7 @@ class ExampleInMemoryParticipantState(
       // queued and the actor's receive method is invoked sequentially with
       // each message, hence this is safe under concurrency.
       commitActorRef ! CommitSubmission(
-        allocateEntryId,
+        allocateEntryId(),
         submission
       )
       SubmissionResult.Acknowledged
@@ -492,7 +492,7 @@ class ExampleInMemoryParticipantState(
     val cf = new CompletableFuture[UploadPackagesResult]
     matcherActorRef ! AddPackageUploadRequest(sId, cf)
     commitActorRef ! CommitSubmission(
-      allocateEntryId,
+      allocateEntryId(),
       KeyValueSubmission
         .archivesToSubmission(sId, archives, sourceDescription.getOrElse(""), participantId)
     )
@@ -512,17 +512,6 @@ class ExampleInMemoryParticipantState(
   /** Shutdown the in-memory participant state. */
   override def close(): Unit = {
     val _ = Await.ready(gracefulStop(commitActorRef, 5.seconds, PoisonPill), 6.seconds)
-  }
-
-  private def getLogEntry(state: State, entryId: DamlLogEntryId): DamlLogEntry = {
-    DamlLogEntry
-      .parseFrom(
-        state.store
-          .getOrElse(
-            entryId.getEntryId,
-            sys.error(s"getLogEntry: Cannot find ${Pretty.prettyEntryId(entryId)}!")
-          )
-      )
   }
 
   private def getDamlState(state: State, key: DamlStateKey): Option[DamlStateValue] =
@@ -547,7 +536,7 @@ class ExampleInMemoryParticipantState(
   /** Get a new record time for the ledger from the system clock.
     * Public for use from integration tests.
     */
-  def getNewRecordTime(): Timestamp =
+  def getNewRecordTime: Timestamp =
     Timestamp.assertFromInstant(Clock.systemUTC().instant())
 
   /** Submit a new configuration to the ledger. */
@@ -560,7 +549,7 @@ class ExampleInMemoryParticipantState(
       val submission =
         KeyValueSubmission.configurationToSubmission(maxRecordTime, submissionId, config)
       commitActorRef ! CommitSubmission(
-        allocateEntryId,
+        allocateEntryId(),
         submission
       )
       SubmissionResult.Acknowledged

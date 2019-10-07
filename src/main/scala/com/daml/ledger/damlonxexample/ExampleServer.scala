@@ -3,21 +3,15 @@
 
 package com.daml.ledger.damlonxexample
 
-import java.io.{File, FileWriter}
+import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.zip.ZipFile
 
-import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Sink, Source}
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
-import com.daml.ledger.api.server.damlonx.Server
-import com.daml.ledger.participant.state.index.v1.impl.reference.ReferenceIndexService
 import com.daml.ledger.participant.state.v1._
 import com.digitalasset.daml.lf.archive.DarReader
-import com.digitalasset.daml.lf.data.{ImmArray, Ref}
+import com.digitalasset.daml.lf.data.Ref
 import com.digitalasset.daml_lf.DamlLf.Archive
-import com.digitalasset.platform.common.util.DirectExecutionContext
 import com.digitalasset.platform.index.{StandaloneIndexServer, StandaloneIndexerServer}
 import org.slf4j.LoggerFactory
 
@@ -90,9 +84,8 @@ object ExampleServer extends App with EphemeralPostgres {
       stopAndCleanUp(ephemeralPg.tempDir, ephemeralPg.dataDir, ephemeralPg.logFile)
     }))
   } catch {
-    case NonFatal(t) => {
+    case NonFatal(t) =>
       logger.error("Shutting down Sandbox application because of initialization error", t)
       closeServer()
-    }
   }
 }
