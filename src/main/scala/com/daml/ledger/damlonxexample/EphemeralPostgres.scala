@@ -26,17 +26,17 @@ trait EphemeralPostgres {
   protected val testUser = "test"
 
   @volatile
-  protected var postgresFixture: PostgresFixture = null
+  protected var postgresFixture: PostgresFixture = _
 
   protected def startEphemeralPg(): PostgresFixture = {
     logger.info("starting Postgres fixture")
     val tempDir = Files.createTempDirectory("postgres_test")
     val tempDirPath = tempDir.toAbsolutePath.toString
     val dataDir = Paths.get(tempDirPath, "data")
-    val postgresConfPath = Paths.get(dataDir.toString, "postgresql.conf");
+    val postgresConfPath = Paths.get(dataDir.toString, "postgresql.conf")
     val postgresPort = findFreePort()
 
-    def runInitDb() = {
+    def runInitDb(): Unit = {
       val command = Array(
         pgToolPath("initdb"),
         s"--username=$testUser",
@@ -67,7 +67,7 @@ trait EphemeralPostgres {
             |log_min_duration_statement = 0
             |log_connections = on
             |listen_addresses = 'localhost'
-            |port = ${postgresPort}
+            |port = $postgresPort
       """.stripMargin
 
       Files.write(postgresConfPath, configText.getBytes(StandardCharsets.UTF_8))
@@ -92,7 +92,7 @@ trait EphemeralPostgres {
       logFile
     }
 
-    def createTestDatabase() = {
+    def createTestDatabase(): Unit = {
       val command = Array(
         pgToolPath("createdb"),
         "-h",
@@ -123,7 +123,7 @@ trait EphemeralPostgres {
     }
   }
 
-  private def waitForItOrDie(p: Process, what: String) = {
+  private def waitForItOrDie(p: Process, what: String): Unit = {
     logger.info(s"waiting for '$what' to exit")
     if (p.waitFor() != 0) {
       val writer = new StringWriter
@@ -133,7 +133,7 @@ trait EphemeralPostgres {
     logger.info(s"the process has been terminated")
   }
 
-  private def deleteTempFolder(tempDir: Path) =
+  private def deleteTempFolder(tempDir: Path): Unit =
     FileUtils.deleteDirectory(tempDir.toFile)
 
   private def findFreePort(): Int = {
