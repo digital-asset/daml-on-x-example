@@ -6,5 +6,6 @@ project/boot/
 project/plugins/project/
 .history
 .cache
+*.log
 .lib/
 .idea/
