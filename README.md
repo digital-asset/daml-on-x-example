@@ -7,10 +7,11 @@ Kit](https://docs.daml.com/daml-integration-kit/index.html).
 
 ## Prerequisites
 
+* Postgres installed locally
+
 This application assumes that postgres is installed on the machine and the
 paths to corresponding utilities such as initdb and pd_ctl have been defined in the
 environment.
-
 
 ## Usage
 
