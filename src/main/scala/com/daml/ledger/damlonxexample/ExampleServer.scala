@@ -38,7 +38,8 @@ object ExampleServer extends App with EphemeralPostgres {
       "daml-on-x-example-server",
       "A fully compliant DAML Ledger API example in memory server",
       allowExtraParticipants = true
-    ).getOrElse(sys.exit(1))
+    )
+    .getOrElse(sys.exit(1))
     .copy(jdbcUrl = ephemeralPg.jdbcUrl)
 
   val participantId: ParticipantId = Ref.LedgerString.assertFromString("in-memory-participant")
@@ -61,10 +62,21 @@ object ExampleServer extends App with EphemeralPostgres {
   val authService = AuthServiceWildcard
 
   val indexersF: Future[(AutoCloseable, StandaloneIndexServer#SandboxState)] = for {
-    indexerServer <- StandaloneIndexerServer(readService, config, loggerFactory, SharedMetricRegistries.getOrCreate(s"indexer-${config.participantId}"))
-    indexServer <-  StandaloneIndexServer(config, readService, writeService, authService, loggerFactory, SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")).start()
+    indexerServer <- StandaloneIndexerServer(
+      readService,
+      config,
+      loggerFactory,
+      SharedMetricRegistries.getOrCreate(s"indexer-${config.participantId}")
+    )
+    indexServer <- StandaloneIndexServer(
+      config,
+      readService,
+      writeService,
+      authService,
+      loggerFactory,
+      SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
+    ).start()
   } yield (indexerServer, indexServer)
-
 
   //val ledger = new Ledger(timeModel, tsb)
   def archivesFromDar(file: File): List[Archive] = {
@@ -107,5 +119,6 @@ object ExampleServer extends App with EphemeralPostgres {
     case NonFatal(t) =>
       logger.error("Shutting down Sandbox application because of initialization error", t)
       closeServer()
+      stopAndCleanUp(ephemeralPg.tempDir, ephemeralPg.dataDir, ephemeralPg.logFile)
   }
 }
