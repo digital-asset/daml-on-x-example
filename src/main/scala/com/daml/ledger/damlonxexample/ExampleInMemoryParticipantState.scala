@@ -14,7 +14,6 @@ import akka.actor.{Actor, ActorRef, ActorSystem, PoisonPill, Props}
 import akka.pattern.gracefulStop
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
-import com.daml.ledger.participant.state.backport.TimeModel
 import com.daml.ledger.participant.state.kvutils.DamlKvutils._
 import com.daml.ledger.participant.state.kvutils.KeyValueSubmission
 import com.daml.ledger.participant.state.kvutils.KeyValueCommitting
@@ -25,7 +24,7 @@ import com.digitalasset.daml.lf.data.Ref
 import com.digitalasset.daml.lf.data.Ref.{LedgerString, Party}
 import com.digitalasset.daml.lf.data.Time.Timestamp
 import com.digitalasset.daml.lf.engine.Engine
-import com.digitalasset.daml_lf.DamlLf.Archive
+import com.digitalasset.daml_lf_dev.DamlLf.Archive
 import com.digitalasset.platform.akkastreams.dispatcher.Dispatcher
 import com.digitalasset.platform.akkastreams.dispatcher.SubSource.OneAfterAnother
 import com.google.protobuf.ByteString
@@ -118,9 +117,7 @@ class ExampleInMemoryParticipantState(
   // The initial ledger configuration
   private val initialLedgerConfig = Configuration(
     generation = 0,
-    timeModel = TimeModel.reasonableDefault,
-    authorizedParticipantId = Some(participantId),
-    openWorld = openWorld
+    timeModel = TimeModel.reasonableDefault
   )
 
   // DAML Engine for transaction validation.
@@ -347,11 +344,8 @@ class ExampleInMemoryParticipantState(
     * given offset, and the method [[Dispatcher.signalNewHead]] to signal that
     * new elements has been added.
     */
-  private val dispatcher: Dispatcher[Int, List[Update]] = Dispatcher(
-    steppingMode = OneAfterAnother(
-      (idx: Int, _) => idx + 1,
-      (idx: Int) => Future.successful(getUpdate(idx, stateRef))
-    ),
+  private val dispatcher: Dispatcher[Int] = Dispatcher(
+    "example-participant-state",
     zeroIndex = beginning,
     headAtInitialization = beginning
   )
@@ -393,7 +387,11 @@ class ExampleInMemoryParticipantState(
       .startingAt(
         beginAfter
           .map(_.components.head.toInt)
-          .getOrElse(beginning)
+          .getOrElse(beginning),
+        OneAfterAnother[Int, List[Update]](
+          (idx: Int, _) => idx + 1,
+          (idx: Int) => Future.successful(getUpdate(idx, stateRef))
+        )
       )
       .collect {
         case (offset, updates) =>
@@ -547,7 +545,7 @@ class ExampleInMemoryParticipantState(
   ): CompletionStage[SubmissionResult] =
     CompletableFuture.completedFuture({
       val submission =
-        KeyValueSubmission.configurationToSubmission(maxRecordTime, submissionId, config)
+        KeyValueSubmission.configurationToSubmission(maxRecordTime, submissionId, participantId, config)
       commitActorRef ! CommitSubmission(
         allocateEntryId(),
         submission
