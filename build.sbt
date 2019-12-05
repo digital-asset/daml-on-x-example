@@ -35,7 +35,6 @@ lazy val root = (project in file("."))
       "com.digitalasset" %% "daml-lf-language" % sdkVersion,
 
       "com.digitalasset.platform" %% "sandbox" % sdkVersion,
-      "com.digitalasset.ledger" %% "ledger-api-common" % sdkVersion,
       "com.digitalasset.ledger" %% "ledger-api-auth" % sdkVersion,
 
       "com.daml.ledger" %% "participant-state" % sdkVersion,
