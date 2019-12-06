@@ -6,26 +6,17 @@ package com.daml.ledger.damlonxexample
 import java.io._
 import java.time.Clock
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{CompletableFuture, CompletionStage}
 
 import akka.NotUsed
-import akka.actor.{Actor, ActorRef, ActorSystem, PoisonPill, Props}
+import akka.actor.{Actor, ActorSystem, PoisonPill, Props}
 import akka.pattern.gracefulStop
 import akka.stream.Materializer
 import akka.stream.scaladsl.{Sink, Source}
-import com.daml.ledger.participant.state.kvutils.{DamlKvutils => Proto}
-import com.daml.ledger.participant.state.kvutils.DamlKvutils._
-import com.daml.ledger.participant.state.kvutils.{
-  Envelope,
-  KeyValueCommitting,
-  KeyValueConsumption,
-  KeyValueSubmission,
-  Pretty
-}
+import com.daml.ledger.participant.state.kvutils.{Envelope, KeyValueCommitting, KeyValueConsumption, KeyValueSubmission, Pretty, DamlKvutils => Proto}
 import com.daml.ledger.participant.state.v1._
 import com.digitalasset.daml.lf.data.Ref
-import com.digitalasset.daml.lf.data.Ref.{LedgerString}
+import com.digitalasset.daml.lf.data.Ref.LedgerString
 import com.digitalasset.daml.lf.data.Time.Timestamp
 import com.digitalasset.daml.lf.engine.Engine
 import com.digitalasset.daml_lf_dev.DamlLf.Archive
@@ -92,8 +83,8 @@ object ExampleInMemoryParticipantState {
   */
 class ExampleInMemoryParticipantState(
     val participantId: ParticipantId,
-    val ledgerId: LedgerString.T = Ref.LedgerString.assertFromString(UUID.randomUUID.toString),
-    file: Option[File] = None
+    val ledgerId: LedgerString = Ref.LedgerString.assertFromString(UUID.randomUUID.toString),
+    file: Option[File] = None,
 )(implicit system: ActorSystem, mat: Materializer)
     extends ReadService
     with WriteService
@@ -103,7 +94,7 @@ class ExampleInMemoryParticipantState(
 
   private val logger = LoggerFactory.getLogger(this.getClass)
 
-  implicit private val ec: ExecutionContext = mat.executionContext
+  private implicit val ec: ExecutionContext = mat.executionContext
 
   // The initial ledger configuration
   private val initialLedgerConfig = Configuration(
@@ -122,9 +113,6 @@ class ExampleInMemoryParticipantState(
 
   // Namespace prefix for DAML state.
   private val NS_DAML_STATE = ByteString.copyFromUtf8("DS")
-
-  // For an in-memory ledger, an atomic integer is enough to guarantee uniqueness
-  private val submissionIdSource = new AtomicInteger()
 
   /** Interval for heartbeats. Heartbeats are committed to [[State.commitLog]]
     * and sent as [[Update.Heartbeat]] to [[stateUpdates]] consumers.
@@ -174,16 +162,15 @@ class ExampleInMemoryParticipantState(
           stateRef.copy(
             commitLog = stateRef.commitLog :+ commit,
             recordTime = newRecordTime
-          )
-        )
+          ))
         // Wake up consumers.
         dispatcher.signalNewHead(stateRef.commitLog.size)
 
       case commit @ CommitSubmission(entryId, envelope) =>
         val submission: Proto.DamlSubmission = Envelope.open(envelope) match {
-          case Left(err)                                     => sys.error(s"Cannot open submission envelope: $err")
+          case Left(err) => sys.error(s"Cannot open submission envelope: $err")
           case Right(Envelope.SubmissionMessage(submission)) => submission
-          case Right(_)                                      => sys.error("Unexpected message in envelope")
+          case Right(_) => sys.error("Unexpected message in envelope")
         }
         val state = stateRef
         val newRecordTime = getNewRecordTime
@@ -213,11 +200,9 @@ class ExampleInMemoryParticipantState(
 
           // Verify that the state updates match the pre-declared outputs.
           val expectedStateUpdates = KeyValueCommitting.submissionOutputs(entryId, submission)
-          if (!damlStateUpdates.keySet.subsetOf(expectedStateUpdates)) {
+          if (!(damlStateUpdates.keySet subsetOf expectedStateUpdates)) {
             sys.error(
-              s"CommitActor: State updates not a subset of expected updates! Keys [${damlStateUpdates.keySet
-                .diff(expectedStateUpdates)}] are unaccounted for!"
-            )
+              s"CommitActor: State updates not a subset of expected updates! Keys [${damlStateUpdates.keySet diff expectedStateUpdates}] are unaccounted for!")
           }
 
           // Combine the abstract log entry and the state updates into concrete updates to the store.
@@ -225,12 +210,11 @@ class ExampleInMemoryParticipantState(
             damlStateUpdates.map {
               case (k, v) =>
                 NS_DAML_STATE.concat(KeyValueCommitting.packDamlStateKey(k)) ->
-                  KeyValueCommitting.packDamlStateValue(v)
-            } + (entryId.getEntryId -> KeyValueCommitting.packDamlLogEntry(logEntry))
+                  Envelope.enclose(v)
+            } + (entryId.getEntryId -> Envelope.enclose(logEntry))
 
           logger.trace(
-            s"CommitActor: committing ${Pretty.prettyEntryId(entryId)} and ${allUpdates.size} updates to store."
-          )
+            s"CommitActor: committing ${Pretty.prettyEntryId(entryId)} and ${allUpdates.size} updates to store.")
 
           // Update the state.
           updateState(
@@ -238,8 +222,7 @@ class ExampleInMemoryParticipantState(
               recordTime = newRecordTime,
               commitLog = state.commitLog :+ commit,
               store = state.store ++ allUpdates
-            )
-          )
+            ))
 
           // Wake up consumers.
           dispatcher.signalNewHead(stateRef.commitLog.size)
@@ -250,7 +233,7 @@ class ExampleInMemoryParticipantState(
   /** Instance of the [[CommitActor]] to which we send messages. */
   private val commitActorRef = {
     // Start the commit actor.
-    val actorRef: ActorRef =
+    val actorRef =
       system.actorOf(Props(new CommitActor), s"commit-actor-$ledgerId")
 
     // Schedule heartbeat messages to be delivered to the commit actor.
@@ -278,14 +261,15 @@ class ExampleInMemoryParticipantState(
     * given offset, and the method [[Dispatcher.signalNewHead]] to signal that
     * new elements has been added.
     */
-  private val dispatcher: Dispatcher[Int] = Dispatcher(
+  private val dispatcher: Dispatcher[Int] =
+    Dispatcher(
     "example-participant-state",
     zeroIndex = beginning,
     headAtInitialization = beginning
   )
 
-  /** Helper for [[dispatcher]] to fetch [[DamlLogEntry]] from the
-    * state and convert it into [[Update]].
+  /** Helper for [[dispatcher]] to fetch [[com.daml.ledger.participant.state.kvutils.DamlKvutils.DamlLogEntry]] from the
+    * state and convert it into [[com.daml.ledger.participant.state.v1.Update]].
     */
   private def getUpdate(idx: Int, state: State): List[Update] = {
     assert(idx >= 0 && idx < state.commitLog.size)
@@ -296,9 +280,9 @@ class ExampleInMemoryParticipantState(
           .get(entryId.getEntryId)
           .map { blob =>
             val logEntry = Envelope.open(blob) match {
-              case Left(err)                                 => sys.error(s"getUpdate: cannot open envelope: $err")
+              case Left(err) => sys.error(s"getUpdate: cannot open envelope: $err")
               case Right(Envelope.LogEntryMessage(logEntry)) => logEntry
-              case Right(_)                                  => sys.error(s"getUpdate: Envelope did not contain log entry")
+              case Right(_) => sys.error(s"getUpdate: Envelope did not contain log entry")
             }
             KeyValueConsumption.logEntryToUpdate(entryId, logEntry)
           }
@@ -311,13 +295,6 @@ class ExampleInMemoryParticipantState(
     }
   }
 
-  /** Subscribe to updates to the participant state.
-    * Implemented using the [[Dispatcher]] helper which handles the signalling
-    * and fetching of entries from the state.
-    *
-    * See [[ReadService.stateUpdates]] for full documentation for the properties
-    * of this method.
-    */
   override def currentHealth(): HealthStatus = Healthy
 
   /** Subscribe to updates to the participant state.
@@ -374,8 +351,7 @@ class ExampleInMemoryParticipantState(
   override def submitTransaction(
       submitterInfo: SubmitterInfo,
       transactionMeta: TransactionMeta,
-      transaction: SubmittedTransaction
-  ): CompletionStage[SubmissionResult] =
+      transaction: SubmittedTransaction): CompletionStage[SubmissionResult] =
     CompletableFuture.completedFuture({
       // Construct a [[DamlSubmission]] message using the key-value utilities.
       // [[DamlSubmission]] contains the serialized transaction and metadata such as
@@ -387,7 +363,7 @@ class ExampleInMemoryParticipantState(
       // queued and the actor's receive method is invoked sequentially with
       // each message, hence this is safe under concurrency.
       commitActorRef ! CommitSubmission(
-        allocateEntryId(),
+        allocateEntryId,
         Envelope.enclose(
           submission
         )
@@ -399,8 +375,7 @@ class ExampleInMemoryParticipantState(
   override def allocateParty(
       hint: Option[String],
       displayName: Option[String],
-      submissionId: SubmissionId
-  ): CompletionStage[SubmissionResult] = {
+      submissionId: SubmissionId): CompletionStage[SubmissionResult] = {
     val party = hint.getOrElse(generateRandomParty())
     val submission =
       KeyValueSubmission.partyToSubmission(submissionId, Some(party), displayName, participantId)
@@ -423,8 +398,7 @@ class ExampleInMemoryParticipantState(
   override def uploadPackages(
       archives: List[Archive],
       sourceDescription: Option[String],
-      submissionId: SubmissionId
-  ): CompletionStage[SubmissionResult] = {
+      submissionId: SubmissionId): CompletionStage[SubmissionResult] = {
 
     val submission = KeyValueSubmission
       .archivesToSubmission(submissionId, archives, sourceDescription.getOrElse(""), participantId)
@@ -459,9 +433,9 @@ class ExampleInMemoryParticipantState(
         Envelope.open(blob) match {
           case Right(Envelope.StateValueMessage(v)) => v
           case _ => sys.error(s"getDamlState: Envelope did not contain a state value")
-        })
+      })
 
-  private def allocateEntryId(): Proto.DamlLogEntryId = {
+  private def allocateEntryId: Proto.DamlLogEntryId = {
     val nonce: Array[Byte] = Array.ofDim(8)
     rng.nextBytes(nonce)
     Proto.DamlLogEntryId.newBuilder
@@ -478,21 +452,20 @@ class ExampleInMemoryParticipantState(
   /** Get a new record time for the ledger from the system clock.
     * Public for use from integration tests.
     */
-  def getNewRecordTime: Timestamp =
+  def getNewRecordTime(): Timestamp =
     Timestamp.assertFromInstant(Clock.systemUTC().instant())
 
   /** Submit a new configuration to the ledger. */
   override def submitConfiguration(
       maxRecordTime: Timestamp,
       submissionId: SubmissionId,
-      config: Configuration
-  ): CompletionStage[SubmissionResult] =
+      config: Configuration): CompletionStage[SubmissionResult] =
     CompletableFuture.completedFuture({
       val submission =
         KeyValueSubmission
           .configurationToSubmission(maxRecordTime, submissionId, participantId, config)
       commitActorRef ! CommitSubmission(
-        allocateEntryId(),
+        allocateEntryId,
         Envelope.enclose(submission)
       )
       SubmissionResult.Acknowledged

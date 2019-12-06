@@ -38,7 +38,7 @@ object ExampleServer extends App with EphemeralPostgres {
       args,
       "daml-on-x-example-server",
       "A fully compliant DAML Ledger API example in memory server",
-      allowExtraParticipants = true)
+      allowExtraParticipants = false)
     .getOrElse(sys.exit(1))
     .copy(jdbcUrl = ephemeralPg.jdbcUrl)
 
@@ -60,31 +60,23 @@ object ExampleServer extends App with EphemeralPostgres {
   val loggerFactory = NamedLoggerFactory.forParticipant(config.participantId)
   val authService = AuthServiceWildcard
 
+  // Parse DAR archives given as command-line arguments and upload them
+  // to the ledger using a side-channel.
+  config.archiveFiles.foreach { file =>
+    for {
+      dar <- DarReader { case (_, x) => Try(Archive.parseFrom(x)) }
+        .readArchiveFromFile(file)
+    } yield
+      ledger.uploadPackages(
+        dar.all,
+        None,
+        SubmissionId.assertFromString(UUID.randomUUID().toString))
+  }
+
   val indexersF: Future[(AutoCloseable, StandaloneIndexServer#SandboxState)] = for {
     indexerServer <- newIndexer(config)
     indexServer <- newIndexServer(config).start
   } yield (indexerServer, indexServer)
-
-  //val ledger = new Ledger(timeModel, tsb)
-  def archivesFromDar(file: File): List[Archive] = {
-    DarReader[Archive] { case (_, x) => Try(Archive.parseFrom(x)) }
-      .readArchiveFromFile(file)
-      .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
-  }
-
-  // Parse DAR archives given as command-line arguments and upload them
-  // to the ledger using a side-channel.
-  config.archiveFiles.foreach { f =>
-    val archives = archivesFromDar(f)
-    archives.foreach { archive =>
-      logger.info(s"Uploading package ${archive.getHash}...")
-    }
-    ledger.uploadPackages(
-      archives,
-      Some("uploaded on startup by participant"),
-      SubmissionId.assertFromString(UUID.randomUUID().toString)
-    )
-  }
 
   val closed = new AtomicBoolean(false)
 
