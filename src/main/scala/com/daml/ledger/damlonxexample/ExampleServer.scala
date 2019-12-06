@@ -4,13 +4,14 @@
 package com.daml.ledger.damlonxexample
 
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import com.daml.ledger.participant.state.v1._
 import com.digitalasset.daml.lf.archive.DarReader
-import com.digitalasset.daml.lf.data.Ref
+import com.digitalasset.platform.index.config.Config
 import com.digitalasset.daml_lf_dev.DamlLf.Archive
 import com.digitalasset.ledger.api.auth.AuthServiceWildcard
 import com.digitalasset.platform.common.logging.NamedLoggerFactory
@@ -37,16 +38,12 @@ object ExampleServer extends App with EphemeralPostgres {
       args,
       "daml-on-x-example-server",
       "A fully compliant DAML Ledger API example in memory server",
-      allowExtraParticipants = true
-    )
+      allowExtraParticipants = true)
     .getOrElse(sys.exit(1))
     .copy(jdbcUrl = ephemeralPg.jdbcUrl)
 
-  val participantId: ParticipantId = Ref.LedgerString.assertFromString("in-memory-participant")
-
   // Initialize Akka and log exceptions in flows.
   implicit val system: ActorSystem = ActorSystem("DamlonxExampleServer")
-  implicit val ec: ExecutionContext = system.dispatcher
   implicit val materializer: ActorMaterializer = ActorMaterializer(
     ActorMaterializerSettings(system)
       .withSupervisionStrategy { e =>
@@ -54,28 +51,18 @@ object ExampleServer extends App with EphemeralPostgres {
         Supervision.Stop
       }
   )
+  implicit val ec: ExecutionContext = system.dispatcher
 
-  val ledger = new ExampleInMemoryParticipantState(participantId)
+  val ledger = new ExampleInMemoryParticipantState(config.participantId)
+
   val readService = ledger
   val writeService = ledger
   val loggerFactory = NamedLoggerFactory.forParticipant(config.participantId)
   val authService = AuthServiceWildcard
 
   val indexersF: Future[(AutoCloseable, StandaloneIndexServer#SandboxState)] = for {
-    indexerServer <- StandaloneIndexerServer(
-      readService,
-      config,
-      loggerFactory,
-      SharedMetricRegistries.getOrCreate(s"indexer-${config.participantId}")
-    )
-    indexServer <- StandaloneIndexServer(
-      config,
-      readService,
-      writeService,
-      authService,
-      loggerFactory,
-      SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
-    ).start()
+    indexerServer <- newIndexer(config)
+    indexServer <- newIndexServer(config).start
   } yield (indexerServer, indexServer)
 
   //val ledger = new Ledger(timeModel, tsb)
@@ -92,7 +79,11 @@ object ExampleServer extends App with EphemeralPostgres {
     archives.foreach { archive =>
       logger.info(s"Uploading package ${archive.getHash}...")
     }
-    ledger.uploadPackages(archives, Some("uploaded on startup by participant"))
+    ledger.uploadPackages(
+      archives,
+      Some("uploaded on startup by participant"),
+      SubmissionId.assertFromString(UUID.randomUUID().toString)
+    )
   }
 
   val closed = new AtomicBoolean(false)
@@ -109,6 +100,22 @@ object ExampleServer extends App with EphemeralPostgres {
       val _ = system.terminate()
     }
   }
+
+  def newIndexer(config: Config) = StandaloneIndexerServer(
+    readService,
+    config,
+    loggerFactory,
+    SharedMetricRegistries.getOrCreate(s"indexer-${config.participantId}"))
+
+  def newIndexServer(config: Config) =
+    new StandaloneIndexServer(
+      config,
+      readService,
+      writeService,
+      authService,
+      loggerFactory,
+      SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
+    )
 
   try {
     Runtime.getRuntime.addShutdownHook(new Thread(() => {
