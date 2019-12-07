@@ -18,6 +18,8 @@ assemblyMergeStrategy in assembly := {
     // Looks like multiple versions patch versions of of io.netty are getting
     // into dependency graph, choose one.
     MergeStrategy.first
+  case PathList(ps @ _*) if ps.last startsWith "com/fasterxml/jackson" =>
+    MergeStrategy.first
   case x =>
     val oldStrategy = (assemblyMergeStrategy in assembly).value
     oldStrategy(x)
@@ -34,10 +36,14 @@ lazy val root = (project in file("."))
       "com.digitalasset" %% "daml-lf-engine" % sdkVersion,
       "com.digitalasset" %% "daml-lf-language" % sdkVersion,
 
-      "com.digitalasset.platform" %% "sandbox" % sdkVersion,
-      "com.digitalasset.ledger" %% "ledger-api-auth" % sdkVersion,
+      "com.digitalasset.platform" %% "sandbox" % sdkVersion withExclusions(Vector(
+        ExclusionRule("com.fasterxml.jackson.core")
+      )),
+       "com.digitalasset.ledger" %% "ledger-api-auth" % sdkVersion withExclusions(Vector(
+         ExclusionRule("com.fasterxml.jackson.core")
+       )),
 
-      "com.daml.ledger" %% "participant-state" % sdkVersion,
+      "com.daml.ledger" %% "participant-state" % sdkVersion ,
       "com.daml.ledger" %% "participant-state-kvutils" % sdkVersion,
 
       "com.typesafe.akka" %% "akka-actor" % akkaVersion,
@@ -51,12 +57,7 @@ lazy val root = (project in file("."))
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "commons-io" % "commons-io" % "2.6",
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
+
     ),
     resolvers += "Digital Asset SDK".at("https://digitalassetsdk.bintray.com/DigitalAssetSDK"),
-    dependencyOverrides ++= Seq(
-      /* jackson */
-      "com.fasterxml.jackson.core" % "jackson-core" % jacksonVersion,
-      "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion,
-      "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion
-    )
   )
