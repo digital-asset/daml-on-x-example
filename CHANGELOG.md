@@ -7,11 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Upgrades to version 100.13.38 of DAML SDK
 - Take in updated CLI and Config options, and reapply additional config for Fabric added on top of the defaults
-- Use StandaloneIndexer and StandaloneIndex instead of ReferenceServer
 - Update and correct various artifact dependencies
+- Correct path in bintray to ledger api test tool
+- Remove open world default configuration mode
+- Changes in dispatcher interface in Participant API
+- Participant ID is passed to configuration service
 - Force specific version of jackson to avoid clashing resolution
 - Include initial authentication support with AuthWildcard implementation
-- Use H2 for index server
 - Include MaxInboundMessageSize setting
 - Named logger factory
 - Include metrics registry
