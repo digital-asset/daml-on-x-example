@@ -20,7 +20,7 @@ if [ "$OSNAME" = "Linux" ] ; then
 fi
 
 echo "Extracting the .dar file to load in example server..."
-cd target && java -jar ledger-api-test-tool.jar --extract localhost:11111 || true # mask incorrect error code of the tool: https://github.com/digital-asset/daml/pull/889
+cd target && java -jar ledger-api-test-tool.jar --extract dummy:11111 || true # mask incorrect error code of the tool: https://github.com/digital-asset/daml/pull/889
 # back to prior working directory
 cd ../
 
