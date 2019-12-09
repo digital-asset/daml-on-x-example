@@ -3,6 +3,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.4]
+### Changed
+- Upgrades to version 100.13.38 of DAML SDK
+- Take in updated CLI and Config options, and reapply additional config for Fabric added on top of the defaults
+- Update and correct various artifact dependencies
+- Correct path in bintray to ledger api test tool
+- Remove open world default configuration mode
+- Changes in dispatcher interface in Participant API
+- Participant ID is passed to configuration service
+- Force specific version of jackson to avoid clashing resolution
+- Include initial authentication support with AuthWildcard implementation
+- Include MaxInboundMessageSize setting
+- Named logger factory
+- Include metrics registry
+
 ## [0.1.3]
 ### Changed
 - Use postgres as ledger index database [#23](https://github.com/digital-asset/daml-on-x-example/issues/23)

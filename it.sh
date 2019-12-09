@@ -11,7 +11,7 @@ sdkVersion=$(sbt --error 'set showSuccess := false'  printSdkVersion)
 echo "Detected SDK version is $sdkVersion"
 
 echo "Downloading DAML Integration kit Ledger API Test Tool version ${sdkVersion}..."
-curl -L "https://bintray.com/api/v1/content/digitalassetsdk/DigitalAssetSDK/com/daml/ledger/testtool/ledger-api-test-tool_2.12/${sdkVersion}/ledger-api-test-tool_2.12-${sdkVersion}.jar?bt_package=sdk-components" \
+curl -L "https://bintray.com/api/v1/content/digitalassetsdk/DigitalAssetSDK/com/daml/ledger/testtool/ledger-api-test-tool/${sdkVersion}/ledger-api-test-tool-${sdkVersion}.jar?bt_package=sdk-components" \
      -o target/ledger-api-test-tool.jar
 
 readonly OSNAME="$(uname -s)"
@@ -20,7 +20,7 @@ if [ "$OSNAME" = "Linux" ] ; then
 fi
 
 echo "Extracting the .dar file to load in example server..."
-cd target && java -jar ledger-api-test-tool.jar --extract || true # mask incorrect error code of the tool: https://github.com/digital-asset/daml/pull/889
+cd target && java -jar ledger-api-test-tool.jar --extract dummy:11111 || true # mask incorrect error code of the tool: https://github.com/digital-asset/daml/pull/889
 # back to prior working directory
 cd ../
 
@@ -31,7 +31,7 @@ echo "Waiting for the server to start"
 sleep 20
 echo "damlonx-example server started"
 echo "Launching the test tool..."
-java -jar target/ledger-api-test-tool.jar -h localhost -p 6865 --all-tests --exclude TimeIT
+java -jar target/ledger-api-test-tool.jar localhost:6865 --all-tests --exclude TimeIT,LotsOfPartiesIT --timeout-scale-factor 3.5
 echo "Test tool run is complete."
 echo "Killing the server..."
 kill $serverPid

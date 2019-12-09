@@ -11,10 +11,14 @@ import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import com.daml.ledger.participant.state.v1._
 import com.digitalasset.daml.lf.archive.DarReader
 import com.digitalasset.daml.lf.data.Ref
-import com.digitalasset.daml_lf.DamlLf.Archive
+import com.digitalasset.daml_lf_dev.DamlLf.Archive
+import com.digitalasset.ledger.api.auth.AuthServiceWildcard
+import com.digitalasset.platform.common.logging.NamedLoggerFactory
 import com.digitalasset.platform.index.{StandaloneIndexServer, StandaloneIndexerServer}
+import com.codahale.metrics.SharedMetricRegistries
 import org.slf4j.LoggerFactory
 
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.util.control.NonFatal
 
@@ -28,12 +32,21 @@ object ExampleServer extends App with EphemeralPostgres {
 
   val ephemeralPg = startEphemeralPg()
 
-  val config = Cli.parse(args).getOrElse(sys.exit(1)).copy(jdbcUrl = ephemeralPg.jdbcUrl)
+  val config = Cli
+    .parse(
+      args,
+      "daml-on-x-example-server",
+      "A fully compliant DAML Ledger API example in memory server",
+      allowExtraParticipants = true
+    )
+    .getOrElse(sys.exit(1))
+    .copy(jdbcUrl = ephemeralPg.jdbcUrl)
 
   val participantId: ParticipantId = Ref.LedgerString.assertFromString("in-memory-participant")
 
   // Initialize Akka and log exceptions in flows.
   implicit val system: ActorSystem = ActorSystem("DamlonxExampleServer")
+  implicit val ec: ExecutionContext = system.dispatcher
   implicit val materializer: ActorMaterializer = ActorMaterializer(
     ActorMaterializerSettings(system)
       .withSupervisionStrategy { e =>
@@ -45,9 +58,25 @@ object ExampleServer extends App with EphemeralPostgres {
   val ledger = new ExampleInMemoryParticipantState(participantId)
   val readService = ledger
   val writeService = ledger
+  val loggerFactory = NamedLoggerFactory.forParticipant(config.participantId)
+  val authService = AuthServiceWildcard
 
-  val indexerServer = StandaloneIndexerServer(readService, config.jdbcUrl)
-  val indexServer = StandaloneIndexServer(config, readService, writeService).start()
+  val indexersF: Future[(AutoCloseable, StandaloneIndexServer#SandboxState)] = for {
+    indexerServer <- StandaloneIndexerServer(
+      readService,
+      config,
+      loggerFactory,
+      SharedMetricRegistries.getOrCreate(s"indexer-${config.participantId}")
+    )
+    indexServer <- StandaloneIndexServer(
+      config,
+      readService,
+      writeService,
+      authService,
+      loggerFactory,
+      SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
+    ).start()
+  } yield (indexerServer, indexServer)
 
   //val ledger = new Ledger(timeModel, tsb)
   def archivesFromDar(file: File): List[Archive] = {
@@ -70,8 +99,11 @@ object ExampleServer extends App with EphemeralPostgres {
 
   def closeServer(): Unit = {
     if (closed.compareAndSet(false, true)) {
-      indexServer.close()
-      indexerServer.close()
+      indexersF.foreach {
+        case (indexer, indexServer) =>
+          indexer.close()
+          indexServer.close()
+      }
       ledger.close()
       materializer.shutdown()
       val _ = system.terminate()
@@ -87,5 +119,6 @@ object ExampleServer extends App with EphemeralPostgres {
     case NonFatal(t) =>
       logger.error("Shutting down Sandbox application because of initialization error", t)
       closeServer()
+      stopAndCleanUp(ephemeralPg.tempDir, ephemeralPg.dataDir, ephemeralPg.logFile)
   }
 }
