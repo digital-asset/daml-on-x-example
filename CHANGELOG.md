@@ -3,6 +3,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.5]
+### Changed
+- Upgrades to version 100.13.39 of DAML SDK
+- (BREAKING CHANGE)
+   `allocateParty` in WriteService now returns `SubmissionResult` rather than `PartyAllocationResult`
+   ResponseMatcher actor no longer needs to wait for response from allocateParty call to match to the request,
+   the submission can now be asyncronous.  The party created response can be read by the calling allocation via the 
+   ledger API service.  If the ledger integration wants to read this response, it can see this in state updates
+   via the read service
+- `allocateParty` now takes a typed `Option[Party]` and a `SubmissionId`
+- Remove handling of party allocation request and associated case classes in `ResponseMatcher`
+- `new` required in StandaloneIndexServer constructor
+- `CommitSubmission` now takes `ByteString` in envelope rather than `DamlSubmission`
+- Use `Envelope.open()` followed by `Envelope.LogEntryMessage()` rather than `KeyValueConsumption.unpackDamlLogEntry`
+- Use `Envelope.enclose()` rather than `KeyValueCommitting.packDamlStateValue`
+    
+
 ## [0.1.4]
 ### Changed
 - Upgrades to version 100.13.38 of DAML SDK

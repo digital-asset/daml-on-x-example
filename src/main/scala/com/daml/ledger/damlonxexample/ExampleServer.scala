@@ -68,7 +68,7 @@ object ExampleServer extends App with EphemeralPostgres {
       loggerFactory,
       SharedMetricRegistries.getOrCreate(s"indexer-${config.participantId}")
     )
-    indexServer <- StandaloneIndexServer(
+    indexServer <- new StandaloneIndexServer(
       config,
       readService,
       writeService,
