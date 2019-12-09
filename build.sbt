@@ -36,12 +36,8 @@ lazy val root = (project in file("."))
       "com.digitalasset" %% "daml-lf-engine" % sdkVersion,
       "com.digitalasset" %% "daml-lf-language" % sdkVersion,
 
-      "com.digitalasset.platform" %% "sandbox" % sdkVersion withExclusions(Vector(
-        ExclusionRule("com.fasterxml.jackson.core")
-      )),
-       "com.digitalasset.ledger" %% "ledger-api-auth" % sdkVersion withExclusions(Vector(
-         ExclusionRule("com.fasterxml.jackson.core")
-       )),
+      "com.digitalasset.platform" %% "sandbox" % sdkVersion excludeAll (ExclusionRule("com.fasterxml.jackson.core")),
+      "com.digitalasset.ledger" %% "ledger-api-auth" % sdkVersion excludeAll (ExclusionRule("com.fasterxml.jackson.core")),
 
       "com.daml.ledger" %% "participant-state" % sdkVersion ,
       "com.daml.ledger" %% "participant-state-kvutils" % sdkVersion,
