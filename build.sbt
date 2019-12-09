@@ -6,7 +6,7 @@ ThisBuild / organization := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
 lazy val sdkVersion = "100.13.38"
-lazy val akkaVersion = "2.5.22"
+lazy val akkaVersion = "2.5.23"
 lazy val jacksonVersion = "2.9.8"
 
 // This task is used by the integration test to detect which version of Ledger API Test Tool to use.
