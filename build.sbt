@@ -5,7 +5,7 @@ ThisBuild / version := "0.1.3-SNAPSHOT"
 ThisBuild / organization := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
-lazy val sdkVersion = "100.13.38"
+lazy val sdkVersion = "100.13.39"
 lazy val akkaVersion = "2.5.23"
 lazy val jacksonVersion = "2.9.8"
 
