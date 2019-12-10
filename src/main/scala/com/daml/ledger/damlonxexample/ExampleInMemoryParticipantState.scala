@@ -191,7 +191,7 @@ class ExampleInMemoryParticipantState(
                     case Right(Envelope.LogEntryMessage(logEntry)) =>
                       logEntry
                     case _ =>
-                      sys.error(s"Envolope did not contain log entry")
+                      sys.error("Envolope did not contain log entry")
                   },
                   participantId
                 )
@@ -358,7 +358,7 @@ class ExampleInMemoryParticipantState(
             val logEntry = Envelope.open(blob) match {
               case Left(err)                                 => sys.error(s"getUpdate: cannot open envelope: $err")
               case Right(Envelope.LogEntryMessage(logEntry)) => logEntry
-              case Right(_)                                  => sys.error(s"getUpdate: Envelope did not contain log entry")
+              case Right(_)                                  => sys.error("getUpdate: Envelope did not contain log entry")
             }
             KeyValueConsumption.logEntryToUpdate(entryId, logEntry)
           }
@@ -516,7 +516,7 @@ class ExampleInMemoryParticipantState(
       case Right(Envelope.LogEntryMessage(logEntry)) =>
         logEntry
       case _ =>
-        sys.error(s"getLogEntry: Envelope did not contain log entry")
+        sys.error("getLogEntry: Envelope did not contain log entry")
     }
   }
 
@@ -527,7 +527,7 @@ class ExampleInMemoryParticipantState(
         blob =>
           Envelope.open(blob) match {
             case Right(Envelope.StateValueMessage(v)) => v
-            case _                                    => sys.error(s"getDamlState: Envelope did not contain a state value")
+            case _                                    => sys.error("getDamlState: Envelope did not contain a state value")
           }
       )
 
