@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.6]
+### Changed
+- Upgrades to version 100.13.40 of DAML SDK
+- Remove exclusion of `com.fasterxml.jackson.core` libraries from sandbox and ledger-api-auth as there are no longer problematic clashing versions brought in transitively
+
 ## [0.1.5]
 ### Changed
 - Upgrades to version 100.13.39 of DAML SDK

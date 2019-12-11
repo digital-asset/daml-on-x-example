@@ -5,7 +5,7 @@ ThisBuild / version := "0.1.3-SNAPSHOT"
 ThisBuild / organization := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
-lazy val sdkVersion = "100.13.39"
+lazy val sdkVersion = "100.13.40"
 lazy val akkaVersion = "2.5.23"
 lazy val jacksonVersion = "2.9.8"
 
@@ -36,8 +36,8 @@ lazy val root = (project in file("."))
       "com.digitalasset" %% "daml-lf-engine" % sdkVersion,
       "com.digitalasset" %% "daml-lf-language" % sdkVersion,
 
-      "com.digitalasset.platform" %% "sandbox" % sdkVersion excludeAll (ExclusionRule("com.fasterxml.jackson.core")),
-      "com.digitalasset.ledger" %% "ledger-api-auth" % sdkVersion excludeAll (ExclusionRule("com.fasterxml.jackson.core")),
+      "com.digitalasset.platform" %% "sandbox" % sdkVersion,
+      "com.digitalasset.ledger" %% "ledger-api-auth" % sdkVersion,
 
       "com.daml.ledger" %% "participant-state" % sdkVersion ,
       "com.daml.ledger" %% "participant-state-kvutils" % sdkVersion,
