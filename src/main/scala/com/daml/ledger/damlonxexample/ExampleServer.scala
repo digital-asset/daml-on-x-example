@@ -59,22 +59,10 @@ object ExampleServer extends App with EphemeralPostgres {
   val loggerFactory = NamedLoggerFactory.forParticipant(config.participantId)
   val authService = AuthServiceWildcard
 
-  // Parse DAR archives given as command-line arguments and upload them
-  // to the ledger using a side-channel.
-  config.archiveFiles.foreach { f =>
-    val submissionId = SubmissionId.assertFromString(UUID.randomUUID().toString)
-    val archives = archivesFromDar(f)
-    archives.foreach { archive =>
-      logger.info(s"Uploading package ${archive.getHash}...")
-    }
-    ledger.uploadPackages(submissionId, archives, Some("uploaded on startup by participant"))
-  }
-
-  private def archivesFromDar(file: File): List[Archive] = {
-    DarReader[Archive] { case (_, x) => Try(Archive.parseFrom(x)) }
-      .readArchiveFromFile(file)
-      .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
-  }
+  val participantF: Future[(AutoCloseable, AutoCloseable)] = for {
+    indexer <- newIndexer(config)
+    apiServer <- newApiServer(config).start()
+  } yield (indexer, apiServer)
 
   private def newIndexer(config: Config) =
     StandaloneIndexerServer(
@@ -103,10 +91,22 @@ object ExampleServer extends App with EphemeralPostgres {
       SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
     )
 
-  val participantF: Future[(AutoCloseable, AutoCloseable)] = for {
-    indexer <- newIndexer(config)
-    apiServer <- newApiServer(config).start()
-  } yield (indexer, apiServer)
+  // Parse DAR archives given as command-line arguments and upload them
+  // to the ledger using a side-channel.
+  config.archiveFiles.foreach { f =>
+    val submissionId = SubmissionId.assertFromString(UUID.randomUUID().toString)
+    val archives = archivesFromDar(f)
+    archives.foreach { archive =>
+      logger.info(s"Uploading package ${archive.getHash}...")
+    }
+    ledger.uploadPackages(submissionId, archives, Some("uploaded on startup by participant"))
+  }
+
+  private def archivesFromDar(file: File): List[Archive] = {
+    DarReader[Archive] { case (_, x) => Try(Archive.parseFrom(x)) }
+      .readArchiveFromFile(file)
+      .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
+  }
 
   val closed = new AtomicBoolean(false)
 
