@@ -91,6 +91,12 @@ object ExampleServer extends App with EphemeralPostgres {
       SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
     )
 
+  private def archivesFromDar(file: File): List[Archive] = {
+    DarReader[Archive] { case (_, x) => Try(Archive.parseFrom(x)) }
+      .readArchiveFromFile(file)
+      .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
+  }
+
   // Parse DAR archives given as command-line arguments and upload them
   // to the ledger using a side-channel.
   config.archiveFiles.foreach { f =>
@@ -100,12 +106,6 @@ object ExampleServer extends App with EphemeralPostgres {
       logger.info(s"Uploading package ${archive.getHash}...")
     }
     ledger.uploadPackages(submissionId, archives, Some("uploaded on startup by participant"))
-  }
-
-  private def archivesFromDar(file: File): List[Archive] = {
-    DarReader[Archive] { case (_, x) => Try(Archive.parseFrom(x)) }
-      .readArchiveFromFile(file)
-      .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
   }
 
   val closed = new AtomicBoolean(false)
