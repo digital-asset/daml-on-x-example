@@ -4,18 +4,19 @@
 package com.daml.ledger.damlonxexample
 
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 import akka.actor.ActorSystem
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
-import com.daml.ledger.participant.state.v1._
 import com.digitalasset.daml.lf.archive.DarReader
-import com.digitalasset.daml.lf.data.Ref
 import com.digitalasset.daml_lf_dev.DamlLf.Archive
 import com.digitalasset.ledger.api.auth.AuthServiceWildcard
 import com.digitalasset.platform.common.logging.NamedLoggerFactory
-import com.digitalasset.platform.index.{StandaloneIndexServer, StandaloneIndexerServer}
 import com.codahale.metrics.SharedMetricRegistries
+import com.daml.ledger.participant.state.v1.SubmissionId
+import com.digitalasset.platform.apiserver.{ApiServerConfig, StandaloneApiServer}
+import com.digitalasset.platform.indexer.{IndexerConfig, StandaloneIndexerServer}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -36,16 +37,13 @@ object ExampleServer extends App with EphemeralPostgres {
     .parse(
       args,
       "daml-on-x-example-server",
-      "A fully compliant DAML Ledger API example in memory server",
-      allowExtraParticipants = true
+      "A fully compliant DAML Ledger API example in memory server"
     )
     .getOrElse(sys.exit(1))
     .copy(jdbcUrl = ephemeralPg.jdbcUrl)
 
-  val participantId: ParticipantId = Ref.LedgerString.assertFromString("in-memory-participant")
-
   // Initialize Akka and log exceptions in flows.
-  implicit val system: ActorSystem = ActorSystem("DamlonxExampleServer")
+  implicit val system: ActorSystem = ActorSystem("DamlonXExampleServer")
   implicit val ec: ExecutionContext = system.dispatcher
   implicit val materializer: ActorMaterializer = ActorMaterializer(
     ActorMaterializerSettings(system)
@@ -55,51 +53,66 @@ object ExampleServer extends App with EphemeralPostgres {
       }
   )
 
-  val ledger = new ExampleInMemoryParticipantState(participantId)
+  val ledger = new ExampleInMemoryParticipantState(config.participantId)
   val readService = ledger
   val writeService = ledger
   val loggerFactory = NamedLoggerFactory.forParticipant(config.participantId)
   val authService = AuthServiceWildcard
 
-  val indexersF: Future[(AutoCloseable, StandaloneIndexServer#SandboxState)] = for {
-    indexerServer <- StandaloneIndexerServer(
-      readService,
-      config,
-      loggerFactory,
-      SharedMetricRegistries.getOrCreate(s"indexer-${config.participantId}")
-    )
-    indexServer <- new StandaloneIndexServer(
-      config,
-      readService,
-      writeService,
-      authService,
-      loggerFactory,
-      SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
-    ).start()
-  } yield (indexerServer, indexServer)
+  // Parse DAR archives given as command-line arguments and upload them
+  // to the ledger using a side-channel.
+  config.archiveFiles.foreach { f =>
+    val submissionId = SubmissionId.assertFromString(UUID.randomUUID().toString)
+    val archives = archivesFromDar(f)
+    archives.foreach { archive =>
+      logger.info(s"Uploading package ${archive.getHash}...")
+    }
+    ledger.uploadPackages(submissionId, archives, Some("uploaded on startup by participant"))
+  }
 
-  //val ledger = new Ledger(timeModel, tsb)
-  def archivesFromDar(file: File): List[Archive] = {
+  private def archivesFromDar(file: File): List[Archive] = {
     DarReader[Archive] { case (_, x) => Try(Archive.parseFrom(x)) }
       .readArchiveFromFile(file)
       .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
   }
 
-  // Parse DAR archives given as command-line arguments and upload them
-  // to the ledger using a side-channel.
-  config.archiveFiles.foreach { f =>
-    val archives = archivesFromDar(f)
-    archives.foreach { archive =>
-      logger.info(s"Uploading package ${archive.getHash}...")
-    }
-    ledger.uploadPackages(archives, Some("uploaded on startup by participant"))
-  }
+  private def newIndexer(config: Config) =
+    StandaloneIndexerServer(
+      readService,
+      IndexerConfig(config.participantId, config.jdbcUrl, config.startupMode),
+      NamedLoggerFactory.forParticipant(config.participantId),
+      SharedMetricRegistries.getOrCreate(s"indexer-${config.participantId}")
+    )
+
+  private def newApiServer(config: Config) =
+    new StandaloneApiServer(
+      ApiServerConfig(
+        config.participantId,
+        config.archiveFiles,
+        config.port,
+        config.jdbcUrl,
+        config.tlsConfig,
+        config.timeProvider,
+        config.maxInboundMessageSize,
+        config.portFile
+      ),
+      readService,
+      writeService,
+      authService,
+      NamedLoggerFactory.forParticipant(config.participantId),
+      SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
+    )
+
+  val participantF: Future[(AutoCloseable, AutoCloseable)] = for {
+    indexer <- newIndexer(config)
+    apiServer <- newApiServer(config).start()
+  } yield (indexer, apiServer)
 
   val closed = new AtomicBoolean(false)
 
   def closeServer(): Unit = {
     if (closed.compareAndSet(false, true)) {
-      indexersF.foreach {
+      participantF.foreach {
         case (indexer, indexServer) =>
           indexer.close()
           indexServer.close()
@@ -110,15 +123,21 @@ object ExampleServer extends App with EphemeralPostgres {
     }
   }
 
+  private def startupFailed(e: Throwable): Unit = {
+    logger.error("Shutting down because of an initialization error.", e)
+    closeServer()
+    stopAndCleanUp(ephemeralPg.tempDir, ephemeralPg.dataDir, ephemeralPg.logFile)
+  }
+
+  participantF.failed.foreach(startupFailed)
+
   try {
     Runtime.getRuntime.addShutdownHook(new Thread(() => {
       closeServer()
       stopAndCleanUp(ephemeralPg.tempDir, ephemeralPg.dataDir, ephemeralPg.logFile)
     }))
   } catch {
-    case NonFatal(t) =>
-      logger.error("Shutting down Sandbox application because of initialization error", t)
-      closeServer()
-      stopAndCleanUp(ephemeralPg.tempDir, ephemeralPg.dataDir, ephemeralPg.logFile)
+    case NonFatal(e) =>
+      startupFailed(e)
   }
 }
