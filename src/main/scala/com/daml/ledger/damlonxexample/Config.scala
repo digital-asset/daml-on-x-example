@@ -26,7 +26,7 @@ final case class Config(
 }
 
 object Config {
-  private val DefaultMaxInboundMessageSize = 4 * FileUtils.ONE_MB.toInt
+  val DefaultMaxInboundMessageSize: Int = 4 * FileUtils.ONE_MB.toInt
 
   def default: Config =
     new Config(
