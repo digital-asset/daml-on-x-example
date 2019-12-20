@@ -7,7 +7,6 @@ import java.io.File
 
 import com.digitalasset.daml.lf.data.Ref
 import com.digitalasset.ledger.api.tls.TlsConfiguration
-import com.digitalasset.platform.index.config.Config
 import scopt.Read
 
 object Cli {
