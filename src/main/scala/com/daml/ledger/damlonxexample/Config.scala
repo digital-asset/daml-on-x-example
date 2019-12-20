@@ -7,6 +7,7 @@ import com.digitalasset.api.util.TimeProvider
 import com.digitalasset.daml.lf.data.Ref.LedgerString
 import com.digitalasset.ledger.api.tls.TlsConfiguration
 import com.digitalasset.platform.indexer.IndexerStartupMode
+import org.apache.commons.io.FileUtils
 
 final case class Config(
     port: Int,
@@ -25,7 +26,7 @@ final case class Config(
 }
 
 object Config {
-  val DefaultMaxInboundMessageSize = 4194304
+  private val DefaultMaxInboundMessageSize = 4 * FileUtils.ONE_MB.toInt
 
   def default: Config =
     new Config(
