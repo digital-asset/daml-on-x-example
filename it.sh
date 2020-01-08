@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) 2020 The DAML Authors. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 
 set -euo pipefail
 
@@ -36,3 +39,4 @@ echo "Test tool run is complete."
 echo "Killing the server..."
 kill $serverPid
 wait $serverPid || true # mask SIGTERM error code we should get here.
+

@@ -1,3 +1,6 @@
+// Copyright (c) 2020 The DAML Authors. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 package com.daml.ledger.damlonxexample
 
 import java.io.File
@@ -42,3 +45,4 @@ object Config {
       startupMode = IndexerStartupMode.MigrateAndStart
     )
 }
+
