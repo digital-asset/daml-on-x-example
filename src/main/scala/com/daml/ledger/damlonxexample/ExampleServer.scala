@@ -141,4 +141,3 @@ object ExampleServer extends App with EphemeralPostgres {
       startupFailed(e)
   }
 }
-

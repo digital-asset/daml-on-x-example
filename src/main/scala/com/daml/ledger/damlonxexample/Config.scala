@@ -45,4 +45,3 @@ object Config {
       startupMode = IndexerStartupMode.MigrateAndStart
     )
 }
-

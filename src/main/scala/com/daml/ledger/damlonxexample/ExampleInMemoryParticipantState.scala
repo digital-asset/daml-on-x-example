@@ -513,4 +513,3 @@ class ExampleInMemoryParticipantState(
     })
 
 }
-

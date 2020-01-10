@@ -114,4 +114,3 @@ object Cli {
   ): Option[Config] =
     cmdArgParser(binaryName, description, allowExtraParticipants).parse(args, Config.default)
 }
-

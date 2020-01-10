@@ -178,4 +178,3 @@ trait EphemeralPostgres {
   private def pgToolPath(c: String): String = s"$c"
 
 }
-
