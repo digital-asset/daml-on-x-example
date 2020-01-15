@@ -86,7 +86,12 @@ object ExampleServer extends App with EphemeralPostgres {
       ),
       readService,
       writeService,
-      authService,
+      config.authServices match {
+        case Nil => AuthServiceWildcard
+        case m =>
+          new ChainAuthService(
+            m.map(fileAndClass => new JarFileAuthService(fileAndClass._1, fileAndClass._2)))
+      },
       NamedLoggerFactory.forParticipant(config.participantId),
       SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
     )

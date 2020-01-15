@@ -22,6 +22,7 @@ final case class Config(
     tlsConfig: Option[TlsConfiguration],
     participantId: ParticipantId,
     extraParticipants: Vector[(ParticipantId, Int, String)],
+    authServices: Seq[(File, String)],
     startupMode: IndexerStartupMode
 ) {
   def withTlsConfig(modify: TlsConfiguration => TlsConfiguration): Config =
@@ -42,6 +43,7 @@ object Config {
       tlsConfig = None,
       participantId = LedgerString.assertFromString("ephemeral-postgres-participant"),
       extraParticipants = Vector.empty,
+      authServices = Seq.empty,
       startupMode = IndexerStartupMode.MigrateAndStart
     )
 }

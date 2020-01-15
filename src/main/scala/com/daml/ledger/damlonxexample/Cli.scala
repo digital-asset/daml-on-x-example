@@ -107,6 +107,14 @@ object Cli {
           )
           .action((e, c) => c.copy(extraParticipants = c.extraParticipants :+ e))
       }
+
+      opt[Map[File, String]]('A', "")
+        .optional()
+        .text(
+          "`AuthService` implementations dynamically loaded from external jars, in the form `<jar-file>=<class-name>, ...`"
+        )
+        .action((a, c) => c.copy(authServices = c.authServices ++ a))
+
       arg[File]("<archive>...")
         .optional()
         .unbounded()
