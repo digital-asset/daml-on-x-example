@@ -51,43 +51,53 @@ object Cli {
       allowExtraParticipants: Boolean
   ) =
     new scopt.OptionParser[Config](binaryName) {
+
       head(description)
+
       opt[Int]("port")
         .optional()
         .action((p, c) => c.copy(port = p))
         .text("Server port. If not set, a random port is allocated.")
+
       opt[File]("port-file")
         .optional()
         .action((f, c) => c.copy(portFile = Some(f)))
         .text(
           "File to write the allocated port number to. Used to inform clients in CI about the allocated port."
         )
+
       opt[String]("pem")
         .optional()
         .text("TLS: The pem file to be used as the private key.")
         .action(pemConfig)
+
       opt[String]("crt")
         .optional()
         .text(
           "TLS: The crt file to be used as the cert chain. Required if any other TLS parameters are set."
         )
         .action(crtConfig)
+
       opt[String]("cacrt")
         .optional()
         .text("TLS: The crt file to be used as the the trusted root CA.")
         .action(cacrtConfig)
+
       opt[Int]("maxInboundMessageSize")
         .action((x, c) => c.copy(maxInboundMessageSize = x))
         .text(
           s"Max inbound message size in bytes. Defaults to ${Config.DefaultMaxInboundMessageSize}."
         )
+
       opt[String]("jdbc-url")
         .text("The JDBC URL to the postgres database used for the indexer and the index")
         .action((u, c) => c.copy(jdbcUrl = u))
+
       opt[Ref.LedgerString]("participant-id")
         .optional()
         .text("The participant id given to all components of a ledger api server")
         .action((p, c) => c.copy(participantId = p))
+
       if (allowExtraParticipants) {
         opt[(Ref.LedgerString, Int, String)]('P', "extra-participant")
           .optional()
