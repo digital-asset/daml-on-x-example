@@ -14,6 +14,7 @@ import com.digitalasset.daml_lf_dev.DamlLf.Archive
 import com.digitalasset.ledger.api.auth.AuthServiceWildcard
 import com.digitalasset.platform.common.logging.NamedLoggerFactory
 import com.codahale.metrics.SharedMetricRegistries
+import com.daml.ledger.damlonxexample.authz.{ChainAuthService, JarFileAuthService}
 import com.daml.ledger.participant.state.v1.SubmissionId
 import com.digitalasset.platform.apiserver.{ApiServerConfig, StandaloneApiServer}
 import com.digitalasset.platform.indexer.{IndexerConfig, StandaloneIndexerServer}

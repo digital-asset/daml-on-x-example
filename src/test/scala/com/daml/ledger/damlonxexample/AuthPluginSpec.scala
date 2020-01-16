@@ -5,6 +5,7 @@ package com.daml.ledger.damlonxexample
 
 import java.io.File
 
+import com.daml.ledger.damlonxexample.authz.JarFileAuthService
 import com.digitalasset.ledger.api.auth.Claims
 import io.grpc.Metadata
 import org.scalatest._
