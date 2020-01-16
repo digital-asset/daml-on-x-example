@@ -1,4 +1,5 @@
 import Dependencies._
+import Classes._
 
 ThisBuild / scalaVersion := "2.12.8"
 ThisBuild / version := "0.1.3-SNAPSHOT"
@@ -25,6 +26,21 @@ assemblyMergeStrategy in assembly := {
     oldStrategy(x)
 }
 assemblyJarName in assembly := "damlonx-example.jar"
+
+lazy val testAuthzPlugin = (project in file("./test-authz-plugin"))
+  .settings(
+    name := "DAML-on-X Test Authorization Plugin",
+    libraryDependencies ++= Seq(
+      "com.digitalasset.ledger" %% "ledger-api-auth" % sdkVersion,
+    ),
+    exportJars := true,
+    artifactName := { (_: ScalaVersion, _: ModuleID, _: Artifact) =>
+      "daml-on-x-test-authz-plugin.jar"
+    }
+  )
+
+lazy val authPluginPathExt = settingKey[String]("Get the authz-pluguin artifact path")
+authPluginPathExt := (artifactPath in (Compile, packageBin) in testAuthzPlugin).value.getPath
 
 lazy val root = (project in file("."))
   .settings(
@@ -55,5 +71,8 @@ lazy val root = (project in file("."))
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
 
     ),
+    fork in Test := true,
+    javaOptions in Test ++= Seq(s"-Dauthz.jar=${authPluginPathExt.value}", s"-Dauthz.class=$authzPluginClass"),
     resolvers += "Digital Asset SDK".at("https://digitalassetsdk.bintray.com/DigitalAssetSDK"),
   )
+  .dependsOn(testAuthzPlugin % Test)
