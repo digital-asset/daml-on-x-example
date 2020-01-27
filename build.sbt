@@ -70,6 +70,9 @@ lazy val root = (project in file("."))
       "commons-io" % "commons-io" % "2.6",
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
 
+      "org.scala-lang" % "scala-compiler" % scalaVersion.value,
+//      "ch.obermuhlner" % "jshell-scriptengine" % "1.1.0" // Complex bindings don't seem to work
+
     ),
     fork in Test := true,
     javaOptions in Test ++= Seq(s"-Dauthz.jar=${authPluginPathExt.value}", s"-Dauthz.class=$authzPluginClass"),
