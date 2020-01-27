@@ -14,13 +14,18 @@ class ChainAuthService(
 ) extends AuthService {
 
   override def decodeMetadata(headers: Metadata): CompletionStage[Claims] =
-    authServices.foldLeft(
-      CompletableFuture.completedStage(Claims.empty)
-    ) { (claims: CompletionStage[Claims], authService: AuthService) =>
-      claims.thenCombineAsync(
-        authService.decodeMetadata(headers),
-        (c1, c2: Claims) => combine(c1, c2).getOrElse(Claims.empty)
-      )
+    if (authServices.isEmpty)
+      CompletableFuture.completedStage(if (intersect) Claims.wildcard else Claims.empty)
+    else {
+      val authSvc1 = authServices.head
+      authServices.tail.foldLeft(
+        authSvc1.decodeMetadata(headers)
+      ) { (claims: CompletionStage[Claims], authService: AuthService) =>
+        claims.thenCombineAsync(
+          authService.decodeMetadata(headers),
+          (c1, c2: Claims) => combine(c1, c2).getOrElse(Claims.empty)
+        )
+      }
     }
 
   private def combine(claims1: Claims, claims2: Claims): Option[Claims] =
