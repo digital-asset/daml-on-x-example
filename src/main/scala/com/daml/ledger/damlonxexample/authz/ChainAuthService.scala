@@ -5,18 +5,24 @@ package com.daml.ledger.damlonxexample.authz
 
 import java.util.concurrent.{CompletableFuture, CompletionStage}
 
+import com.daml.ledger.damlonxexample.authz.ChainAuthzMode.ChainzAuthMode
 import com.digitalasset.ledger.api.auth.{AuthService, Claim, ClaimActAsAnyParty, ClaimAdmin, ClaimPublic, Claims}
 import io.grpc.Metadata
 
+object ChainAuthzMode extends Enumeration {
+  type ChainzAuthMode = Value
+  val Intersection, Union = Value
+}
+
 class ChainAuthService(
     private val authServices: Seq[AuthService],
-    private val intersect: Boolean = true
+    private val mode: ChainzAuthMode = ChainAuthzMode.Intersection
 ) extends AuthService {
 
   override def decodeMetadata(headers: Metadata): CompletionStage[Claims] =
-    if (authServices.isEmpty)
-      CompletableFuture.completedStage(if (intersect) Claims.wildcard else Claims.empty)
-    else {
+    if (authServices.isEmpty) {
+      CompletableFuture.completedStage(Claims.empty)
+    } else {
       val authSvc1 = authServices.head
       authServices.tail.foldLeft(
         authSvc1.decodeMetadata(headers)
@@ -29,7 +35,7 @@ class ChainAuthService(
     }
 
   private def combine(claims1: Claims, claims2: Claims): Option[Claims] =
-    if (intersect)
+    if (ChainAuthzMode.Intersection.eq(mode))
       intersect(claims1, claims2)
     else
       union(claims1, claims2)
