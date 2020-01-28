@@ -18,12 +18,12 @@ class ScalaScriptAuthServiceSpec extends FlatSpec with Matchers {
         |import io.grpc.Metadata
         |
         |println(headers.asInstanceOf[Metadata].keys)
-        |val res = new CompletableFuture[Claims]()
-        |res.complete(Claims.wildcard)
-        |res
+        |CompletableFuture.completedFuture(Claims.wildcard)
         |""".stripMargin
     )
-    val authzJS = new ScriptAuthService("scala", reader)
-    authzJS.decodeMetadata(new Metadata()).toCompletableFuture.get() should be(Claims.wildcard)
+    new ScriptAuthService("scala", reader)
+      .decodeMetadata(new Metadata())
+      .toCompletableFuture
+      .get() should be(Claims.wildcard)
   }
 }
