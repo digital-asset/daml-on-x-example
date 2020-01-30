@@ -13,6 +13,7 @@ final class AuthServiceJavaAdapter(private val authService: AuthService) extends
     authService
       .decodeMetadata(headers)
       .thenApply { javaClaims =>
-        javaClaims.asScala
+        import Claims.ToScala._
+        javaClaims
       }
 }

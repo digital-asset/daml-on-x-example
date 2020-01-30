@@ -20,50 +20,30 @@ import com.digitalasset.ledger.api.auth.{
 
 import scala.collection.JavaConverters._
 
-sealed abstract class Claim {
-  implicit def asScala: ScalaClaim
-}
+sealed abstract class Claim
 
 object ClaimAdmin extends Claim {
   def instance(): ClaimAdmin.type = ClaimAdmin
-
-  implicit override def asScala: ScalaClaimAdmin.type = ScalaClaimAdmin
 }
 
 case object ClaimPublic extends Claim {
   def instance(): ClaimPublic.type = ClaimPublic
-
-  implicit override def asScala: ScalaClaimPublic.type = ScalaClaimPublic
 }
 
 case object ClaimActAsAnyParty extends Claim {
   def instance(): ClaimActAsAnyParty.type = ClaimActAsAnyParty
-
-  implicit override def asScala: ScalaClaimActAsAnyParty.type = ScalaClaimActAsAnyParty
 }
 
-final case class ClaimActAsParty(name: Ref.Party) extends Claim {
-  implicit override def asScala: ScalaClaimActAsParty = ScalaClaimActAsParty(name)
-}
+final case class ClaimActAsParty(name: Ref.Party) extends Claim
 
-final case class ClaimReadAsParty(name: Ref.Party) extends Claim {
-  implicit override def asScala: ScalaClaimReadAsParty = ScalaClaimReadAsParty(name)
-}
+final case class ClaimReadAsParty(name: Ref.Party) extends Claim
 
 final case class Claims(
     claims: java.util.List[Claim],
     ledgerId: String,
     participantId: String,
     expiration: Instant
-) {
-  implicit def asScala: ScalaClaims =
-    ScalaClaims(
-      claims.asScala.map(_.asScala),
-      Option(ledgerId),
-      Option(participantId),
-      Option(expiration)
-    )
-}
+)
 
 object Claims {
 
@@ -75,4 +55,24 @@ object Claims {
     participantId = null,
     expiration = null
   )
+
+  object ToScala {
+
+    implicit def javaClaimToScalaClaim(claim: Claim): ScalaClaim =
+      claim match {
+        case ClaimAdmin => ScalaClaimAdmin
+        case ClaimPublic => ScalaClaimPublic
+        case ClaimActAsAnyParty => ScalaClaimActAsAnyParty
+        case ClaimActAsParty(name) => ScalaClaimActAsParty(name)
+        case ClaimReadAsParty(name) => ScalaClaimReadAsParty(name)
+      }
+
+    implicit def javaClaimsToScalaClaims(claims: Claims): ScalaClaims =
+      ScalaClaims(
+        claims.claims.asScala.map(javaClaimToScalaClaim),
+        Option(claims.ledgerId),
+        Option(claims.participantId),
+        Option(claims.expiration)
+      )
+  }
 }
