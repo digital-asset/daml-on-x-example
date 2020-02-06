@@ -13,9 +13,17 @@ sdkVersion=$(sbt --error 'set showSuccess := false'  printSdkVersion)
 # sdkVersion=$(cat build.sbt| egrep -o "sdkVersion.*=.*\".*\"" | perl -pe 's|sdkVersion.*?=.*?"(.*?)"|\1|')
 echo "Detected SDK version is $sdkVersion"
 
-echo "Downloading DAML Integration kit Ledger API Test Tool version ${sdkVersion}..."
-curl -L "https://bintray.com/api/v1/content/digitalassetsdk/DigitalAssetSDK/com/daml/ledger/testtool/ledger-api-test-tool/${sdkVersion}/ledger-api-test-tool-${sdkVersion}.jar?bt_package=sdk-components" \
-     -o target/ledger-api-test-tool.jar
+dest="target/ledger-api-test-tool.jar"
+
+devSdkVersion="100.0.0"
+if [ "$sdkVersion" = "$devSdkVersion" ] ; then
+  echo "Using the local build of the DAML Integration kit Ledger API Test Tool"
+  cp "${HOME}/.m2/repository/com/daml/ledger/testtool/ledger-api-test-tool/${devSdkVersion}/ledger-api-test-tool-${devSdkVersion}.jar" ${dest}
+else
+  echo "Downloading DAML Integration kit Ledger API Test Tool version ${sdkVersion}..."
+  curl -L "https://bintray.com/api/v1/content/digitalassetsdk/DigitalAssetSDK/com/daml/ledger/testtool/ledger-api-test-tool/${sdkVersion}/ledger-api-test-tool-${sdkVersion}.jar?bt_package=sdk-components" \
+       -o ${dest}
+fi
 
 readonly OSNAME="$(uname -s)"
 if [ "$OSNAME" = "Linux" ] ; then
