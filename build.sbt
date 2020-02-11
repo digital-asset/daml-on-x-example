@@ -58,7 +58,5 @@ lazy val root = (project in file("."))
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "commons-io" % "commons-io" % "2.6",
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
-
-    ),
-    resolvers += "Digital Asset SDK".at("https://digitalassetsdk.bintray.com/DigitalAssetSDK"),
+    )
   )
