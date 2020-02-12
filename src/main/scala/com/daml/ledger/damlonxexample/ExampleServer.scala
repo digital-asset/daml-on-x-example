@@ -5,23 +5,25 @@ package com.daml.ledger.damlonxexample
 
 import java.io.File
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
 
 import akka.actor.ActorSystem
-import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
+import akka.stream.Materializer
+import com.codahale.metrics.SharedMetricRegistries
+import com.daml.ledger.participant.state.v1.{ReadService, SubmissionId, WriteService}
 import com.digitalasset.daml.lf.archive.DarReader
 import com.digitalasset.daml_lf_dev.DamlLf.Archive
-import com.digitalasset.ledger.api.auth.AuthServiceWildcard
-import com.digitalasset.platform.common.logging.NamedLoggerFactory
-import com.codahale.metrics.SharedMetricRegistries
-import com.daml.ledger.participant.state.v1.SubmissionId
+import com.digitalasset.ledger.api.auth.{AuthService, AuthServiceWildcard}
+import com.digitalasset.logging.LoggingContext
+import com.digitalasset.logging.LoggingContext.newLoggingContext
 import com.digitalasset.platform.apiserver.{ApiServerConfig, StandaloneApiServer}
 import com.digitalasset.platform.indexer.{IndexerConfig, StandaloneIndexerServer}
+import com.digitalasset.resources.akka.AkkaResourceOwner
+import com.digitalasset.resources.{ProgramResource, ResourceOwner}
 import org.slf4j.LoggerFactory
 
+import scala.compat.java8.FutureConverters.CompletionStageOps
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
-import scala.util.control.NonFatal
 
 /** The example server is a fully compliant DAML Ledger API server
   * backed by the in-memory reference index and participant state implementations.
@@ -45,99 +47,94 @@ object ExampleServer extends App with EphemeralPostgres {
   // Initialize Akka and log exceptions in flows.
   implicit val system: ActorSystem = ActorSystem("DamlonXExampleServer")
   implicit val ec: ExecutionContext = system.dispatcher
-  implicit val materializer: ActorMaterializer = ActorMaterializer(
-    ActorMaterializerSettings(system)
-      .withSupervisionStrategy { e =>
-        logger.error(s"Supervision caught exception: $e")
-        Supervision.Stop
-      }
-  )
+  implicit val materializer: Materializer = Materializer(system)
 
-  val ledger = new ExampleInMemoryParticipantState(config.participantId)
-  val readService = ledger
-  val writeService = ledger
-  val loggerFactory = NamedLoggerFactory.forParticipant(config.participantId)
   val authService = AuthServiceWildcard
 
-  val participantF: Future[(AutoCloseable, AutoCloseable)] = for {
-    indexer <- newIndexer(config)
-    apiServer <- newApiServer(config).start()
-  } yield (indexer, apiServer)
+  val owner =
+    for {
+      // Take ownership of the actor system and materializer so they're cleaned up properly.
+      // This is necessary because we can't declare them as implicits within a `for` comprehension.
+      _ <- AkkaResourceOwner.forActorSystem(() => system)
+      _ <- AkkaResourceOwner.forMaterializer(() => materializer)
+      ledger <- ResourceOwner
+        .forCloseable(() => new ExampleInMemoryParticipantState(config.participantId))
+      _ <- ResourceOwner.forFuture(
+        () => Future.sequence(config.archiveFiles.map(uploadDar(_, ledger)))
+      )
+      _ <- startParticipant(config, ledger)
+      _ <- ResourceOwner.sequenceIgnoringValues(
+        extraParticipantConfig(config).map(startParticipant(_, ledger))
+      )
+    } yield ()
 
-  private def newIndexer(config: Config) =
-    StandaloneIndexerServer(
+  new ProgramResource(owner).run()
+
+  private def uploadDar(from: File, to: ExampleInMemoryParticipantState): Future[Unit] = {
+    val submissionId = SubmissionId.assertFromString(UUID.randomUUID().toString)
+    for {
+      dar <- Future(
+        DarReader { case (_, x) => Try(Archive.parseFrom(x)) }.readArchiveFromFile(from).get
+      )
+      _ <- to.uploadPackages(submissionId, dar.all, None).toScala
+    } yield ()
+  }
+
+  private def extraParticipantConfig(base: Config): Vector[Config] =
+    for ((extraParticipantId, port, jdbcUrl) <- base.extraParticipants)
+      yield
+        base.copy(
+          port = port,
+          participantId = extraParticipantId,
+          jdbcUrl = jdbcUrl
+        )
+
+  private def startParticipant(
+      config: Config,
+      ledger: ExampleInMemoryParticipantState
+  ): ResourceOwner[Unit] =
+    newLoggingContext { implicit logCtx =>
+      for {
+        _ <- startIndexerServer(config, readService = ledger)
+        _ <- startApiServer(
+          config,
+          readService = ledger,
+          writeService = ledger,
+          authService = AuthServiceWildcard
+        )
+      } yield ()
+    }
+
+  private def startIndexerServer(config: Config, readService: ReadService)(
+      implicit logCtx: LoggingContext
+  ): ResourceOwner[Unit] =
+    new StandaloneIndexerServer(
       readService,
       IndexerConfig(config.participantId, config.jdbcUrl, config.startupMode),
-      NamedLoggerFactory.forParticipant(config.participantId),
       SharedMetricRegistries.getOrCreate(s"indexer-${config.participantId}")
     )
 
-  private def newApiServer(config: Config) =
+  private def startApiServer(
+      config: Config,
+      readService: ReadService,
+      writeService: WriteService,
+      authService: AuthService
+  )(implicit logCtx: LoggingContext): ResourceOwner[Unit] =
     new StandaloneApiServer(
       ApiServerConfig(
         config.participantId,
         config.archiveFiles,
         config.port,
+        None,
         config.jdbcUrl,
         config.tlsConfig,
         config.timeProvider,
         config.maxInboundMessageSize,
-        config.portFile
+        config.portFile.map(_.toPath)
       ),
       readService,
       writeService,
       authService,
-      NamedLoggerFactory.forParticipant(config.participantId),
       SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
     )
-
-  private def archivesFromDar(file: File): List[Archive] = {
-    DarReader[Archive] { case (_, x) => Try(Archive.parseFrom(x)) }
-      .readArchiveFromFile(file)
-      .fold(t => throw new RuntimeException(s"Failed to parse DAR from $file", t), dar => dar.all)
-  }
-
-  // Parse DAR archives given as command-line arguments and upload them
-  // to the ledger using a side-channel.
-  config.archiveFiles.foreach { f =>
-    val submissionId = SubmissionId.assertFromString(UUID.randomUUID().toString)
-    val archives = archivesFromDar(f)
-    archives.foreach { archive =>
-      logger.info(s"Uploading package ${archive.getHash}...")
-    }
-    ledger.uploadPackages(submissionId, archives, Some("uploaded on startup by participant"))
-  }
-
-  val closed = new AtomicBoolean(false)
-
-  def closeServer(): Unit = {
-    if (closed.compareAndSet(false, true)) {
-      participantF.foreach {
-        case (indexer, indexServer) =>
-          indexer.close()
-          indexServer.close()
-      }
-      ledger.close()
-      materializer.shutdown()
-      val _ = system.terminate()
-    }
-  }
-
-  private def startupFailed(e: Throwable): Unit = {
-    logger.error("Shutting down because of an initialization error.", e)
-    closeServer()
-    stopAndCleanUp(ephemeralPg.tempDir, ephemeralPg.dataDir, ephemeralPg.logFile)
-  }
-
-  participantF.failed.foreach(startupFailed)
-
-  try {
-    Runtime.getRuntime.addShutdownHook(new Thread(() => {
-      closeServer()
-      stopAndCleanUp(ephemeralPg.tempDir, ephemeralPg.dataDir, ephemeralPg.logFile)
-    }))
-  } catch {
-    case NonFatal(e) =>
-      startupFailed(e)
-  }
 }

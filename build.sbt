@@ -5,9 +5,8 @@ ThisBuild / version := "0.1.3-SNAPSHOT"
 ThisBuild / organization := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
-lazy val sdkVersion = "100.13.41"
-lazy val akkaVersion = "2.5.23"
-lazy val jacksonVersion = "2.9.8"
+lazy val sdkVersion = "100.13.51"
+lazy val akkaVersion = "2.6.1"
 
 // This task is used by the integration test to detect which version of Ledger API Test Tool to use.
 val printSdkVersion = taskKey[Unit]("printSdkVersion")
@@ -20,6 +19,12 @@ assemblyMergeStrategy in assembly := {
     MergeStrategy.first
   case PathList(ps @ _*) if ps.last startsWith "com/fasterxml/jackson" =>
     MergeStrategy.first
+  case PathList("google", "protobuf", n) if n endsWith ".proto" =>
+    // Both in protobuf and akka
+    MergeStrategy.first
+  case "module-info.class" =>
+    // In all 2.10 Jackson JARs
+    MergeStrategy.discard
   case x =>
     val oldStrategy = (assemblyMergeStrategy in assembly).value
     oldStrategy(x)
@@ -53,7 +58,5 @@ lazy val root = (project in file("."))
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "commons-io" % "commons-io" % "2.6",
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
-
-    ),
-    resolvers += "Digital Asset SDK".at("https://digitalassetsdk.bintray.com/DigitalAssetSDK"),
+    )
   )
