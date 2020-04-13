@@ -21,7 +21,7 @@ if [ "$sdkVersion" = "$devSdkVersion" ] ; then
   cp "${HOME}/.m2/repository/com/daml/ledger/testtool/ledger-api-test-tool/${devSdkVersion}/ledger-api-test-tool-${devSdkVersion}.jar" ${dest}
 else
   echo "Downloading DAML Integration kit Ledger API Test Tool version ${sdkVersion}..."
-  curl -L "https://bintray.com/api/v1/content/digitalassetsdk/DigitalAssetSDK/com/daml/ledger/testtool/ledger-api-test-tool/${sdkVersion}/ledger-api-test-tool-${sdkVersion}.jar?bt_package=sdk-components" \
+  curl -L "https://repo.maven.apache.org/maven2/com/daml/ledger/testtool/ledger-api-test-tool/${sdkVersion}/ledger-api-test-tool-${sdkVersion}.jar?bt_package=sdk-components" \
        -o ${dest}
 fi
 
