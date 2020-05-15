@@ -37,10 +37,6 @@ jobs:
           name: Add bin directory to PATH
           command: |
             echo "export PATH=${CIRCLE_WORKING_DIRECTORY}/bin:$PATH" >> $BASH_ENV
-      - run:
-          name: Install fabric-tools
-          command: |
-              curl -sSL https://bit.ly/2ysbOFE | bash -s -- 2.0.0 -s
       - restore_cache:
           # Read about caching dependencies: https://circleci.com/docs/2.0/caching/
           key: sbt-cache
