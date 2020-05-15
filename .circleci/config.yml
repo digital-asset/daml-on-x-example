@@ -6,7 +6,7 @@ jobs:
     working_directory: ~/samplescala
     docker:
       - image: openjdk:8
-        -
+
       - image: circleci/python:3.6.2-stretch-browsers
         environment:
           TEST_DATABASE_URL: postgresql://root@localhost/circle_test
