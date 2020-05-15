@@ -7,7 +7,7 @@ jobs:
       - image: openjdk:8
     environment:
       SBT_VERSION: 1.0.4
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - run: echo 'export ARTIFACT_BUILD=$CIRCLE_PROJECT_REPONAME-$CIRCLE_BUILD_NUM.zip' >> $BASH_ENV
       - run:
