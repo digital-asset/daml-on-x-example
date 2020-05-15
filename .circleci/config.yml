@@ -30,12 +30,11 @@ jobs:
             apt-get update
             apt-get install -y sbt python-pip git
             apt-get install -y docker-compose
+            apt-get install postgresql-client-9.6
             pip install awscli
             pip install urllib3==1.22
             apt-get clean && apt-get autoclean
       - checkout
-      - run: sudo apt-get update
-      - run: sudo apt-get install postgresql-client-9.6
       - setup_remote_docker
       - run:
           name: Install Docker client
