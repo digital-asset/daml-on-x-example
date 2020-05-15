@@ -6,7 +6,13 @@ jobs:
     working_directory: ~/samplescala
     docker:
       - image: openjdk:8
+        -
+      - image: circleci/python:3.6.2-stretch-browsers
+        environment:
+          TEST_DATABASE_URL: postgresql://root@localhost/circle_test
+
       # Service container image
+
       - image: circleci/postgres:9.6.5-alpine-ram
 
     environment:
@@ -26,9 +32,10 @@ jobs:
             apt-get install -y docker-compose
             pip install awscli
             pip install urllib3==1.22
-            apt-get install postgresql-client-9.6
             apt-get clean && apt-get autoclean
       - checkout
+      - run: sudo apt-get update
+      - run: sudo apt-get install postgresql-client-9.6
       - setup_remote_docker
       - run:
           name: Install Docker client
