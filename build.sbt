@@ -5,7 +5,7 @@ ThisBuild / version := "0.1.3-SNAPSHOT"
 ThisBuild / organization := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
-lazy val sdkVersion = "100.13.51"
+lazy val sdkVersion = "1.2.0-snapshot.20200513.4172.0.021f4af3"
 lazy val akkaVersion = "2.6.1"
 
 // This task is used by the integration test to detect which version of Ledger API Test Tool to use.
@@ -19,6 +19,7 @@ assemblyMergeStrategy in assembly := {
     MergeStrategy.first
   case PathList(ps @ _*) if ps.last startsWith "com/fasterxml/jackson" =>
     MergeStrategy.first
+  case "META-INF/versions/9/module-info.class" => MergeStrategy.first
   case PathList("google", "protobuf", n) if n endsWith ".proto" =>
     // Both in protobuf and akka
     MergeStrategy.first
@@ -36,16 +37,20 @@ lazy val root = (project in file("."))
     name := "DAML-on-X Example Ledger Implementation",
     libraryDependencies ++= Seq(
       scalaTest % Test,
-      "com.digitalasset" % "daml-lf-dev-archive-java-proto" % sdkVersion,
-      "com.digitalasset" %% "daml-lf-data" % sdkVersion,
-      "com.digitalasset" %% "daml-lf-engine" % sdkVersion,
-      "com.digitalasset" %% "daml-lf-language" % sdkVersion,
+      "com.daml" % "daml-lf-dev-archive-java-proto" % sdkVersion,
+      "com.daml" %% "contextualized-logging" % sdkVersion,
+      "com.daml" %% "daml-lf-archive-reader" % sdkVersion,
+      "com.daml" %% "daml-lf-data" % sdkVersion,
+      "com.daml" %% "daml-lf-engine" % sdkVersion,
+      "com.daml" %% "daml-lf-language" % sdkVersion,
+      "com.daml" %% "daml-lf-transaction" % sdkVersion,
 
-      "com.digitalasset.platform" %% "sandbox" % sdkVersion,
-      "com.digitalasset.ledger" %% "ledger-api-auth" % sdkVersion,
+      "com.daml" %% "sandbox" % sdkVersion,
+      "com.daml" %% "ledger-api-auth" % sdkVersion,
 
-      "com.daml.ledger" %% "participant-state" % sdkVersion ,
-      "com.daml.ledger" %% "participant-state-kvutils" % sdkVersion,
+      "com.daml" %% "participant-state" % sdkVersion ,
+      "com.daml" %% "participant-state-kvutils" % sdkVersion,
+      "com.daml" %% "participant-state-kvutils-app" % sdkVersion,
 
       "com.typesafe.akka" %% "akka-actor" % akkaVersion,
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,

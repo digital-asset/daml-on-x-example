@@ -5,8 +5,14 @@ package com.daml.ledger.damlonxexample
 
 import java.io.File
 
-import com.digitalasset.daml.lf.data.Ref
-import com.digitalasset.ledger.api.tls.TlsConfiguration
+import com.auth0.jwt.algorithms.Algorithm
+import com.daml.jwt.{ECDSAVerifier, HMAC256Verifier, JwksVerifier, RSA256Verifier}
+import com.daml.ledger.api.auth.AuthServiceJWT
+import com.daml.lf.data.Ref
+import com.daml.ledger.api.tls.TlsConfiguration
+import com.daml.ledger.participant.state.v1.ParticipantId
+import com.daml.ledger.participant.state.v1.SeedService.Seeding
+import com.daml.ports.Port
 import scopt.Read
 
 object Cli {
@@ -54,7 +60,7 @@ object Cli {
       head(description)
       opt[Int]("port")
         .optional()
-        .action((p, c) => c.copy(port = p))
+        .action((p, c) => c.copy(port = Port(p)))
         .text("Server port. If not set, a random port is allocated.")
       opt[File]("port-file")
         .optional()
@@ -81,22 +87,118 @@ object Cli {
         .text(
           s"Max inbound message size in bytes. Defaults to ${Config.DefaultMaxInboundMessageSize}."
         )
+      opt[String]("address")
+        .optional()
+        .action((a, c) => c.copy(address = Some(a)))
+        .text(
+          s"Address that the ledger api server will bind to when started.  If not specified defaults to 0.0.0.0"
+        )
       opt[String]("jdbc-url")
         .text("The JDBC URL to the postgres database used for the indexer and the index")
         .action((u, c) => c.copy(jdbcUrl = u))
-      opt[Ref.LedgerString]("participant-id")
+      opt[String]("participant-id")
         .optional()
         .text("The participant id given to all components of a ledger api server")
-        .action((p, c) => c.copy(participantId = p))
-      if (allowExtraParticipants) {
-        opt[(Ref.LedgerString, Int, String)]('P', "extra-participant")
-          .optional()
-          .unbounded()
-          .text(
-            "A list of triples in the form `<participant-id>,<port>,<index-jdbc-url>` to spin up multiple nodes backed by the same in-memory ledger"
-          )
-          .action((e, c) => c.copy(extraParticipants = c.extraParticipants :+ e))
-      }
+        .action((p, c) => c.copy(participantId = ParticipantId.assertFromString(p)))
+
+      opt[String]("auth-jwt-hs256-unsafe")
+        .optional()
+        .hidden()
+        .validate(v => Either.cond(v.length > 0, (), "HMAC secret must be a non-empty string"))
+        .text(
+          "[UNSAFE] Enables JWT-based authorization with shared secret HMAC256 signing: USE THIS EXCLUSIVELY FOR TESTING"
+        )
+        .action(
+          (secret, c) =>
+            c.copy(
+              authService = AuthServiceJWT(
+                HMAC256Verifier(secret)
+                  .valueOr(err => sys.error(s"Failed to create HMAC256 verifier: $err"))
+              )
+            )
+        )
+      opt[String]("auth-jwt-rs256-crt")
+        .optional()
+        .validate(
+          v => Either.cond(v.length > 0, (), "Certificate file path must be a non-empty string")
+        )
+        .text(
+          "Enables JWT-based authorization, where the JWT is signed by RSA256 with a public key loaded from the given X509 certificate file (.crt)"
+        )
+        .action(
+          (path, c) =>
+            c.copy(
+              authService = AuthServiceJWT(
+                RSA256Verifier
+                  .fromCrtFile(path)
+                  .valueOr(err => sys.error(s"Failed to create RSA256 verifier: $err"))
+              )
+            )
+        )
+      opt[String]("auth-jwt-es256-crt")
+        .optional()
+        .validate(
+          v => Either.cond(v.length > 0, (), "Certificate file path must be a non-empty string")
+        )
+        .text(
+          "Enables JWT-based authorization, where the JWT is signed by ECDSA256 with a public key loaded from the given X509 certificate file (.crt)"
+        )
+        .action(
+          (path, c) =>
+            c.copy(
+              authService = AuthServiceJWT(
+                ECDSAVerifier
+                  .fromCrtFile(path, Algorithm.ECDSA256(_, null))
+                  .valueOr(err => sys.error(s"Failed to create ECDSA256 verifier: $err"))
+              )
+            )
+        )
+      opt[String]("auth-jwt-es512-crt")
+        .optional()
+        .validate(
+          v => Either.cond(v.length > 0, (), "Certificate file path must be a non-empty string")
+        )
+        .text(
+          "Enables JWT-based authorization, where the JWT is signed by ECDSA512 with a public key loaded from the given X509 certificate file (.crt)"
+        )
+        .action(
+          (path, c) =>
+            c.copy(
+              authService = AuthServiceJWT(
+                ECDSAVerifier
+                  .fromCrtFile(path, Algorithm.ECDSA512(_, null))
+                  .valueOr(err => sys.error(s"Failed to create ECDSA512 verifier: $err"))
+              )
+            )
+        )
+      opt[String]("auth-jwt-rs256-jwks")
+        .optional()
+        .validate(v => Either.cond(v.length > 0, (), "JWK server URL must be a non-empty string"))
+        .text(
+          "Enables JWT-based authorization, where the JWT is signed by RSA256 with a public key loaded from the given JWKS URL"
+        )
+        .action((url, c) => c.copy(authService = AuthServiceJWT(JwksVerifier(url))))
+
+      private val seedingTypeMap = Map[String, Option[Seeding]](
+        "no" -> None,
+        "testing-static" -> Some(Seeding.Static),
+        "testing-weak" -> Some(Seeding.Weak),
+        "strong" -> Some(Seeding.Strong)
+      )
+
+      opt[String]("contract-id-seeding")
+        .optional()
+        .text(s"""Set the seeding of contract ids. Possible values are ${seedingTypeMap.keys
+          .mkString(",")}. Default is "no".""")
+        .validate(
+          v =>
+            Either.cond(
+              seedingTypeMap.contains(v.toLowerCase),
+              (),
+              s"seeding must be ${seedingTypeMap.keys.mkString(",")}"
+            )
+        )
+        .action((text, config) => config.copy(seeding = seedingTypeMap(text)))
       arg[File]("<archive>...")
         .optional()
         .unbounded()
