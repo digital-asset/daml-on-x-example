@@ -2,12 +2,6 @@
 version: 2
 jobs:
 
-  # Primary container image where all commands run
-  steps:
-    - checkout
-    - run: sudo apt-get update
-    - run: sudo apt-get install postgresql-client-9.6
-
   build:
     working_directory: ~/samplescala
     docker:
