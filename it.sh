@@ -42,7 +42,7 @@ echo "Waiting for the server to start"
 sleep 20
 echo "damlonx-example server started"
 echo "Launching the test tool..."
-java -jar target/ledger-api-test-tool.jar localhost:6865 --all-tests --exclude TimeIT --timeout-scale-factor 3.5
+java -jar target/ledger-api-test-tool.jar localhost:6865 --all-tests --timeout-scale-factor 3.5
 echo "Test tool run is complete."
 echo "Killing the server..."
 kill $serverPid
