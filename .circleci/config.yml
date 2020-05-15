@@ -1,10 +1,20 @@
 # Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
 version: 2
 jobs:
+
+  # Primary container image where all commands run
+  steps:
+    - checkout
+    - run: sudo apt-get update
+    - run: sudo apt-get install postgresql-client-9.6
+
   build:
     working_directory: ~/samplescala
     docker:
       - image: openjdk:8
+      # Service container image
+      - image: circleci/postgres:9.6.5-alpine-ram
+
     environment:
       SBT_VERSION: 1.0.4
     resource_class: medium
@@ -33,10 +43,12 @@ jobs:
             curl -L -o /tmp/docker-$VER.tgz https://download.docker.com/linux/static/stable/x86_64/docker-$VER.tgz
             tar -xz -C /tmp -f /tmp/docker-$VER.tgz
             mv /tmp/docker/* /usr/bin
+      - run: sudo apt-get update
+      - run: sudo apt-get install postgresql-client-9.6
       - run:
           name: Add bin directory to PATH
           command: |
-            echo "export PATH=${CIRCLE_WORKING_DIRECTORY}/bin:$PATH" >> $BASH_ENV
+            echo "export PATH=/usr/lib/postgresql/9.6/bin:$PATH" >> $BASH_ENV
       - restore_cache:
           # Read about caching dependencies: https://circleci.com/docs/2.0/caching/
           key: sbt-cache
