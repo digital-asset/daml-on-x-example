@@ -18,8 +18,17 @@ import com.daml.lf.engine.Engine
 import com.daml.logging.LoggingContext
 import com.daml.logging.LoggingContext.newLoggingContext
 import com.daml.metrics.Metrics
-import com.daml.platform.apiserver.{ApiServer, ApiServerConfig, StandaloneApiServer, TimedIndexService}
-import com.daml.platform.configuration.{CommandConfiguration, LedgerConfiguration, PartyConfiguration}
+import com.daml.platform.apiserver.{
+  ApiServer,
+  ApiServerConfig,
+  StandaloneApiServer,
+  TimedIndexService
+}
+import com.daml.platform.configuration.{
+  CommandConfiguration,
+  LedgerConfiguration,
+  PartyConfiguration
+}
 import com.daml.platform.indexer.{IndexerConfig, StandaloneIndexerServer}
 import com.daml.resources.akka.AkkaResourceOwner
 import com.daml.resources.{ProgramResource, ResourceOwner}
@@ -52,7 +61,6 @@ object ExampleServer extends App with EphemeralPostgres {
   private val metricsRegistry =
     SharedMetricRegistries.getOrCreate(s"ledger-api-server-${config.participantId}")
   private val metrics = new Metrics(metricsRegistry)
-
 
   // Initialize Akka and log exceptions in flows.
   implicit val system: ActorSystem = ActorSystem("DamlonXExampleServer")
