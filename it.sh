@@ -36,7 +36,7 @@ cd target && java -jar ledger-api-test-tool.jar --extract || true # mask incorre
 cd ../
 
 echo "Launching damlonx-example server..."
-java -jar target/scala-2.12/damlonx-example.jar --port=6865 target/SemanticTests.dar target/Test-dev.dar target/Test-stable.dar & serverPid=$!
+java -jar target/scala-2.12/damlonx-example.jar --jdbc-url="jdbc:h2:mem:daml_on_x_example;db_close_delay=-1;db_close_on_exit=false" --port="6865" target/SemanticTests.dar target/Test-dev.dar target/Test-stable.dar & serverPid=$!
 echo "Waiting for the server to start"
 #crude sleep that will work cross platform
 sleep 20

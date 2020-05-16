@@ -43,7 +43,7 @@ object Config {
       maxInboundMessageSize = DefaultMaxInboundMessageSize,
       timeProvider = TimeProvider.UTC,
       address = Some("0.0.0.0"),
-      jdbcUrl = "jdbc:h2:mem:daml_on_x_example;db_close_delay=-1;db_close_on_exit=false",
+      jdbcUrl = "",
       tlsConfig = None,
       participantId = ParticipantId.assertFromString("ephemeral-postgres-participant"),
       startupMode = IndexerStartupMode.MigrateAndStart,
