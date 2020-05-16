@@ -1,5 +1,4 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/digital-asset/daml/blob/master/LICENSE)
-[![Build](https://dev.azure.com/digitalasset/daml-on-x-example/_apis/build/status/digital-asset.daml-on-x-example?branchName=master&label=Build)](https://dev.azure.com/digitalasset/daml-on-x-example/_build/latest?definitionId=4&branchName=master)
 
 # DAML-on-X Example Ledger Implementation
 
