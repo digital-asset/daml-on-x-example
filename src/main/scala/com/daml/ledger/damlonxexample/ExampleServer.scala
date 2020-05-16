@@ -18,8 +18,17 @@ import com.daml.lf.engine.Engine
 import com.daml.logging.LoggingContext
 import com.daml.logging.LoggingContext.newLoggingContext
 import com.daml.metrics.Metrics
-import com.daml.platform.apiserver.{ApiServer, ApiServerConfig, StandaloneApiServer, TimedIndexService}
-import com.daml.platform.configuration.{CommandConfiguration, LedgerConfiguration, PartyConfiguration}
+import com.daml.platform.apiserver.{
+  ApiServer,
+  ApiServerConfig,
+  StandaloneApiServer,
+  TimedIndexService
+}
+import com.daml.platform.configuration.{
+  CommandConfiguration,
+  LedgerConfiguration,
+  PartyConfiguration
+}
 import com.daml.platform.indexer.{IndexerConfig, StandaloneIndexerServer}
 import com.daml.resources.akka.AkkaResourceOwner
 import com.daml.resources.{ProgramResource, ResourceOwner}
@@ -34,7 +43,6 @@ import scala.util.Try
   * Not meant for production, or even development use cases, but for serving as a blueprint
   * for other implementations.
   */
-
 object ExampleServer extends App with EphemeralPostgres {
   val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -48,11 +56,9 @@ object ExampleServer extends App with EphemeralPostgres {
 
   var config = defaultConfig
 
-  if (defaultConfig.jdbcUrl contains("h2")){
+  if (defaultConfig.jdbcUrl contains ("h2")) {
     config = defaultConfig
-  }
-
-  else{
+  } else {
     val ephemeralPg = startEphemeralPg()
     println(ephemeralPg.jdbcUrl)
     config = defaultConfig.copy(jdbcUrl = ephemeralPg.jdbcUrl)
