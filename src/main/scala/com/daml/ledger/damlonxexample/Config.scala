@@ -5,24 +5,28 @@ package com.daml.ledger.damlonxexample
 
 import java.io.File
 
+import com.daml.api.util.TimeProvider
+import com.daml.ledger.api.auth.{AuthService, AuthServiceWildcard}
+import com.daml.ledger.api.tls.TlsConfiguration
 import com.daml.ledger.participant.state.v1.ParticipantId
-import com.digitalasset.api.util.TimeProvider
-import com.digitalasset.daml.lf.data.Ref.LedgerString
-import com.digitalasset.ledger.api.tls.TlsConfiguration
-import com.digitalasset.platform.indexer.IndexerStartupMode
+import com.daml.ledger.participant.state.v1.SeedService.Seeding
+import com.daml.platform.indexer.IndexerStartupMode
+import com.daml.ports.Port
 import org.apache.commons.io.FileUtils
 
 final case class Config(
-    port: Int,
+    port: Port,
     portFile: Option[File],
     archiveFiles: List[File],
     maxInboundMessageSize: Int,
     timeProvider: TimeProvider, // enables use of non-wall-clock time in tests
+    address: Option[String],
     jdbcUrl: String,
     tlsConfig: Option[TlsConfiguration],
     participantId: ParticipantId,
-    extraParticipants: Vector[(ParticipantId, Int, String)],
-    startupMode: IndexerStartupMode
+    startupMode: IndexerStartupMode,
+    authService: AuthService,
+    seeding: Option[Seeding]
 ) {
   def withTlsConfig(modify: TlsConfiguration => TlsConfiguration): Config =
     copy(tlsConfig = Some(modify(tlsConfig.getOrElse(TlsConfiguration.Empty))))
@@ -33,15 +37,17 @@ object Config {
 
   def default: Config =
     new Config(
-      port = 0,
+      port = Port(0),
       portFile = None,
       archiveFiles = List.empty,
       maxInboundMessageSize = DefaultMaxInboundMessageSize,
       timeProvider = TimeProvider.UTC,
+      address = Some("0.0.0.0"),
       jdbcUrl = "",
       tlsConfig = None,
-      participantId = LedgerString.assertFromString("ephemeral-postgres-participant"),
-      extraParticipants = Vector.empty,
-      startupMode = IndexerStartupMode.MigrateAndStart
+      participantId = ParticipantId.assertFromString("ephemeral-postgres-participant"),
+      startupMode = IndexerStartupMode.MigrateAndStart,
+      authService = AuthServiceWildcard,
+      seeding = Some(Seeding.Weak)
     )
 }

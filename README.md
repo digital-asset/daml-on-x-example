@@ -1,3 +1,5 @@
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/digital-asset/daml-on-x-example/blob/master/LICENSE)
+
 # DAML-on-X Example Ledger Implementation
 
 This repository contains an example [DAML
@@ -12,6 +14,7 @@ Kit](https://docs.daml.com/daml-integration-kit/index.html).
 This application assumes that postgres is installed on the machine and the
 paths to corresponding utilities such as initdb and pd_ctl have been defined in the
 environment.
+
 
 ## Usage
 
