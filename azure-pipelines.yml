@@ -29,6 +29,8 @@ steps:
 
 - script: make package
   displayName: 'Package'
+  
+- script: bash <(curl -s https://copilot.blackducksoftware.com/ci/azure/scripts/upload)  
 
 - script: make it
   displayName: 'Integration test'
