@@ -6,6 +6,7 @@ package com.daml.ledger.damlonxexample
 import java.io.File
 
 import com.daml.api.util.TimeProvider
+import com.daml.caching
 import com.daml.ledger.api.auth.{AuthService, AuthServiceWildcard}
 import com.daml.ledger.api.tls.TlsConfiguration
 import com.daml.ledger.participant.state.v1.ParticipantId
@@ -26,7 +27,8 @@ final case class Config(
     participantId: ParticipantId,
     startupMode: IndexerStartupMode,
     authService: AuthService,
-    seeding: Option[Seeding]
+    seeding: Option[Seeding],
+    lfValueTranslationCache: caching.Configuration,
 ) {
   def withTlsConfig(modify: TlsConfiguration => TlsConfiguration): Config =
     copy(tlsConfig = Some(modify(tlsConfig.getOrElse(TlsConfiguration.Empty))))
@@ -48,6 +50,7 @@ object Config {
       participantId = ParticipantId.assertFromString("ephemeral-postgres-participant"),
       startupMode = IndexerStartupMode.MigrateAndStart,
       authService = AuthServiceWildcard,
-      seeding = Some(Seeding.Weak)
+      seeding = Some(Seeding.Weak),
+      lfValueTranslationCache = caching.Configuration.none
     )
 }

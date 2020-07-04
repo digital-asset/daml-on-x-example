@@ -1,11 +1,11 @@
 import Dependencies._
 
-ThisBuild / scalaVersion := "2.12.8"
-ThisBuild / version := "0.1.3-SNAPSHOT"
+ThisBuild / scalaVersion := "2.12.11"
+ThisBuild / version := "0.1.4-SNAPSHOT"
 ThisBuild / organization := "com.daml"
 ThisBuild / organizationName := "Digital Asset, LLC"
 
-lazy val sdkVersion = "1.2.0-snapshot.20200513.4172.0.021f4af3"
+lazy val sdkVersion = "1.3.0-snapshot.20200610.4412.0.0544323d"
 lazy val akkaVersion = "2.6.1"
 
 // This task is used by the integration test to detect which version of Ledger API Test Tool to use.
