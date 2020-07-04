@@ -18,18 +18,10 @@ import com.daml.lf.engine.Engine
 import com.daml.logging.LoggingContext
 import com.daml.logging.LoggingContext.newLoggingContext
 import com.daml.metrics.Metrics
-import com.daml.platform.apiserver.{
-  ApiServer,
-  ApiServerConfig,
-  StandaloneApiServer,
-  TimedIndexService
-}
-import com.daml.platform.configuration.{
-  CommandConfiguration,
-  LedgerConfiguration,
-  PartyConfiguration
-}
+import com.daml.platform.apiserver.{ApiServer, ApiServerConfig, StandaloneApiServer, TimedIndexService}
+import com.daml.platform.configuration.{CommandConfiguration, LedgerConfiguration, PartyConfiguration}
 import com.daml.platform.indexer.{IndexerConfig, StandaloneIndexerServer}
+import com.daml.platform.store.dao.events.LfValueTranslation
 import com.daml.resources.akka.AkkaResourceOwner
 import com.daml.resources.{ProgramResource, ResourceOwner}
 import org.slf4j.LoggerFactory
@@ -114,33 +106,41 @@ object ExampleServer extends App with EphemeralPostgres {
   private def startParticipant(
       config: Config,
       ledger: ExampleInMemoryParticipantState
-  ): ResourceOwner[Unit] =
+  ): ResourceOwner[Unit] = {
+    val lfValueTranslationCache = LfValueTranslation.Cache.newInstrumentedInstance(
+      configuration = config.lfValueTranslationCache,
+      metrics = metrics,
+    )
     newLoggingContext { implicit logCtx =>
       for {
-        _ <- startIndexerServer(config, readService = ledger)
+        _ <- startIndexerServer(config, readService = ledger, lfValueTranslationCache = lfValueTranslationCache)
         _ <- startApiServer(
           config,
           readService = ledger,
           writeService = ledger,
-          authService = AuthServiceWildcard
+          authService = AuthServiceWildcard,
+          lfValueTranslationCache = lfValueTranslationCache
         )
       } yield ()
     }
+  }
 
-  private def startIndexerServer(config: Config, readService: ReadService)(
+  private def startIndexerServer(config: Config, readService: ReadService, lfValueTranslationCache: LfValueTranslation.Cache)(
       implicit logCtx: LoggingContext
   ): ResourceOwner[Unit] =
     new StandaloneIndexerServer(
       readService,
       IndexerConfig(config.participantId, config.jdbcUrl, config.startupMode),
-      metrics
+      metrics,
+      lfValueTranslationCache
     )
 
   private def startApiServer(
       config: Config,
       readService: ReadService,
       writeService: WriteService,
-      authService: AuthService
+      authService: AuthService,
+      lfValueTranslationCache: LfValueTranslation.Cache,
   )(implicit logCtx: LoggingContext): ResourceOwner[ApiServer] =
     new StandaloneApiServer(
       ApiServerConfig(
@@ -153,7 +153,7 @@ object ExampleServer extends App with EphemeralPostgres {
         maxInboundMessageSize = config.maxInboundMessageSize,
         eventsPageSize = 10,
         portFile = config.portFile.map(_.toPath),
-        seeding = config.seeding
+        seeding = config.seeding.get
       ),
       commandConfig = CommandConfiguration.default,
       partyConfig = PartyConfiguration(false),
@@ -180,6 +180,7 @@ object ExampleServer extends App with EphemeralPostgres {
           metrics
         ),
       metrics,
-      engine = sharedEngine
+      engine = sharedEngine,
+      lfValueTranslationCache = lfValueTranslationCache
     )
 }

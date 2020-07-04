@@ -355,7 +355,7 @@ class ExampleInMemoryParticipantState(
         keyValueSubmission.transactionToSubmission(
           submitterInfo,
           transactionMeta,
-          transaction.assertNoRelCid(cid => s"Unexpected relative contract id: $cid")
+          transaction
         )
 
       // Send the [[DamlSubmission]] to the commit actor. The messages are
